@@ -3,20 +3,26 @@ import pandas as pd
 from utils import db
 
 import ast
+import os
+import dotenv
 
-def create_author_nodes(tx, df):
+dotenv.load_dotenv()
+BOOKS_PATH = os.getenv('BOOKS_PATH')
+RATINGS_PATH = os.getenv('RATINGS_PATH')
+BATCH_SIZE = int(os.getenv("BATCH_SIZE"))
+
+def create_author_nodes(tx: ManagedTransaction, df: pd.DataFrame):
     """
     Función para crear nodos de autores en Neo4j a partir de un DataFrame.
-    Evita duplicados utilizando MERGE y optimiza con UNWIND, procesando en bloques de 5000 filas.
+    Evita duplicados utilizando MERGE y optimiza con UNWIND, procesando en bloques.
     
     Args:
         tx: Sesión de transacción de Neo4j.
         df: DataFrame que contiene la columna 'authors' con listas de autores.
     """
     all_authors = []
-    batch_size = 5000
     total_rows = len(df)
-    print(f"Procesando {total_rows} filas en bloques de {batch_size}...")
+    print(f"Procesando {total_rows} filas en bloques de {BATCH_SIZE}...")
 
     # Procesar fila por fila
     for idx, authors_str in enumerate(df['authors']):
@@ -29,9 +35,9 @@ def create_author_nodes(tx, df):
                 continue
 
         # Ejecutar la query cada vez que alcancemos un múltiplo del tamaño del bloque (5000 filas)
-        if (idx + 1) % batch_size == 0 or (idx + 1) == total_rows:
+        if (idx + 1) % BATCH_SIZE == 0 or (idx + 1) == total_rows:
             unique_authors = list(set(all_authors))  # Remover duplicados dentro del bloque
-            print(f"Procesando bloque de filas {idx + 1 - batch_size + 1} a {idx + 1} (autores únicos en este bloque: {len(unique_authors)})")
+            print(f"Procesando bloque de filas {idx + 1 - BATCH_SIZE + 1} a {idx + 1} (autores únicos en este bloque: {len(unique_authors)})")
             
             if unique_authors:  # Solo ejecutar la query si hay autores en el bloque
                 query = """
@@ -41,7 +47,7 @@ def create_author_nodes(tx, df):
                 
                 # Ejecutar la query con el bloque de autores
                 tx.run(query, authors=unique_authors)
-                print(f"Nodos insertados para filas {idx + 1 - batch_size + 1} a {idx + 1}.")
+                print(f"Nodos insertados para filas {idx + 1 - BATCH_SIZE + 1} a {idx + 1}.")
             
             all_authors = []  # Limpiar la lista para el siguiente bloque
 
@@ -60,7 +66,7 @@ def main():
         "Relaciones creadas" after relationships are created.
     """
     # Cargar el dataset
-    df = pd.read_csv("data/books_data.csv")
+    df = pd.read_csv(BOOKS_PATH)
     
     # Crear nodos
     with db.connect() as driver:
