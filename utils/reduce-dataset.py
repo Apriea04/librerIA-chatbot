@@ -19,14 +19,15 @@ def reduce_dataset(books: int):
     
     # Get first books
     books_df = pd.read_csv(books_path)
-    books_df = books_df.head(books)
+    books_df = books_df.sample(n=books, random_state=1)
     books_df.to_csv(books_path.replace('.csv', '_reduced.csv'), index=False)
+    print("Libros seleccionados y CSV creado.")
     
     # Get ratings for those books
     ratings_df = pd.read_csv(ratings_path)
     ratings_df = ratings_df[ratings_df['Title'].isin(books_df['Title'])]
     ratings_df.to_csv(ratings_path.replace('.csv', '_reduced.csv'), index=False)
-    
+    print("Reseñas seleccionadas y CSV creado.")
     print(f'Dataset reduced to {books} books')
     
 if __name__ == '__main__':

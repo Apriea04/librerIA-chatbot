@@ -24,7 +24,7 @@ def create_nodes_from_col_list(tx: ManagedTransaction, df: pd.DataFrame, column_
     """
     all_elements: list[str] = []
     total_rows = len(df)
-    print(f"Procesando {total_rows} filas en bloques de {BATCH_SIZE}...")
+    print(f"Creando nodos de {printable_name}...")
     counter = 0
 
     # Procesar fila por fila
@@ -65,7 +65,6 @@ def create_book_nodes(tx: ManagedTransaction, df: pd.DataFrame):
     Args:
         tx: Sesión de transacción de Neo4j.
         df: DataFrame que contiene un libro por fila con las columnas 'Title', 'description', 'image'.
-        BATCH_SIZE: Tamaño del bloque (batch) de filas que se procesarán en una sola query.
     '''
     print("Creando nodos de libros...")
     total_rows = len(df)
@@ -106,8 +105,173 @@ def create_book_nodes(tx: ManagedTransaction, df: pd.DataFrame):
     print("Libros creados.")
 
 def create_publisher_nodes(tx: ManagedTransaction, df: pd.DataFrame):
-    # TODO: Implementar función para crear nodos de editoriales
-    pass
+    '''
+    Función para crear nodos de editoriales en Neo4j a partir de un DataFrame.
+    Evita duplicados utilizando MERGE y optimiza con UNWIND, procesando en bloques.
+    
+    Args:
+        tx: Sesión de transacción de Neo4j.
+        df: DataFrame que contiene filas de libros con la columna 'publisher'.
+    '''
+    print("Creando nodos de libros...")
+    total_rows = len(df)
+    
+    # Inicializa una lista para acumular las filas en batch
+    batch_list: list[str] = []
+
+    for idx, row in df.iterrows(): # type: ignore
+        publisher = str(row['publisher']) # type: ignore
+
+        # Agregar cada fila al batch_list
+        batch_list.append(publisher)
+        
+        # Ejecuta la query en bloque cuando se alcanza el tamaño del batch o es la última fila
+        if (idx + 1) % BATCH_SIZE == 0 or (idx + 1) == total_rows: # type: ignore
+            query = """
+            UNWIND $batch_list AS publisher
+            MERGE (p:Publisher {name: publisher})
+            """
+            
+            # Ejecuta la query con el lote actual
+            tx.run(query, batch_list=batch_list)
+            
+            # Imprimir información de progreso
+            print(f"Editoriales creadas para filas {idx + 1 - len(batch_list) + 1} a {idx + 1}.") # type: ignore
+            
+            # Limpia el batch_list después de ejecutar la query
+            batch_list = []
+            
+    print("Editoriales creadas.") 
+    
+def create_books_authors_relations(tx: ManagedTransaction, df: pd.DataFrame) -> None:
+    """
+    Función para crear relaciones entre libros y autores en Neo4j.
+    Cada relación es del tipo (:Book)-[:WRITTEN_BY]->(:Author).
+    
+    Args:
+        tx (ManagedTransaction): Sesión de transacción de Neo4j.
+        df (pd.DataFrame): DataFrame que contiene un libro por fila con las columnas 'Title' y 'authors'.
+    """
+    print("Creando relaciones entre libros y autores...")
+    total_rows = len(df)
+    batch_list: list[dict[str, str]] = []
+    
+    for idx, row in df.iterrows():  # Iterar sobre las filas del DataFrame
+        title = row['Title']  # Título del libro
+        authors_str = row['authors']  # Autores del libro (cadena con lista)
+        
+        if pd.notna(authors_str):  # Verificar si hay autores en esta fila
+            try:
+                authors = ast.literal_eval(authors_str)  # Convertir la cadena en lista
+                if isinstance(authors, list):
+                    for author in authors:
+                        batch_list.append({
+                            "title": title,
+                            "author": author
+                        })
+            except (ValueError, SyntaxError):
+                continue
+
+        # Ejecutar la query en bloques (cada BATCH_SIZE filas o al final del DataFrame)
+        if (idx + 1) % BATCH_SIZE == 0 or (idx + 1) == total_rows:
+            if batch_list:  # Solo ejecutar si hay datos en el batch
+                query = """
+                UNWIND $batch_list AS row
+                MATCH (b:Book {title: row.title})
+                MATCH (a:Author {name: row.author})
+                MERGE (b)-[:WRITTEN_BY]->(a)
+                """
+                tx.run(query, batch_list=batch_list)
+                print(f"Relaciones creadas para filas {idx + 1 - len(batch_list) + 1} a {idx + 1}.")
+                batch_list = []  # Limpiar el batch_list para el siguiente bloque
+
+    print("Relaciones entre libros y autores creadas.")
+
+def create_books_categories_relations(tx: ManagedTransaction, df: pd.DataFrame) -> None:
+    """
+    Función para crear relaciones entre libros y categorías en Neo4j.
+    Cada relación es del tipo (:Book)-[:BELONGS_TO]->(:Category).
+    
+    Args:
+        tx (ManagedTransaction): Sesión de transacción de Neo4j.
+        df (pd.DataFrame): DataFrame que contiene un libro por fila con las columnas 'Title' y 'categories'.
+    """
+    print("Creando relaciones entre libros y categorías...")
+    total_rows = len(df)
+    batch_list: list[dict[str, str]] = []
+    
+    for idx, row in df.iterrows():  # Iterar sobre las filas del DataFrame
+        title = row['Title']  # Título del libro
+        categories_str = row['categories']  # Categorías del libro (cadena con lista)
+        
+        if pd.notna(categories_str):  # Verificar si hay categorías en esta fila
+            try:
+                categories = ast.literal_eval(categories_str)  # Convertir la cadena en lista
+                if isinstance(categories, list):
+                    for category in categories:
+                        batch_list.append({
+                            "title": title,
+                            "category": category
+                        })
+            except (ValueError, SyntaxError):
+                continue
+
+        # Ejecutar la query en bloques (cada BATCH_SIZE filas o al final del DataFrame)
+        if (idx + 1) % BATCH_SIZE == 0 or (idx + 1) == total_rows:
+            if batch_list:  # Solo ejecutar si hay datos en el batch
+                query = """
+                UNWIND $batch_list AS row
+                MATCH (b:Book {title: row.title})
+                MATCH (c:Category {name: row.category})
+                MERGE (b)-[:BELONGS_TO]->(c)
+                """
+                tx.run(query, batch_list=batch_list)
+                print(f"Relaciones creadas para filas {idx + 1 - len(batch_list) + 1} a {idx + 1}.")
+                batch_list = []  # Limpiar el batch_list para el siguiente bloque
+
+    print("Relaciones entre libros y categorías creadas.")
+
+def create_books_publishers_relations(tx: ManagedTransaction, df: pd.DataFrame) -> None:
+    """
+    Función para crear relaciones entre libros y editoriales en Neo4j.
+    Cada relación es del tipo (:Book)-[:PUBLISHED_BY {publishDate: ...}]->(:Publisher).
+    
+    Args:
+        tx (ManagedTransaction): Sesión de transacción de Neo4j.
+        df (pd.DataFrame): DataFrame que contiene un libro por fila con las columnas 'Title', 'publisher' y 'publishedDate'.
+    """
+    print("Creando relaciones entre libros y editoriales...")
+    total_rows = len(df)
+    batch_list: list[dict[str, str]] = []
+    
+    for idx, row in df.iterrows():  # Iterar sobre las filas del DataFrame
+        title = row['Title']  # Título del libro
+        publisher = row['publisher']  # Editorial del libro
+        publish_date = row['publishedDate']  # Fecha de publicación del libro
+        
+        if pd.notna(publisher) and pd.notna(publish_date):  # Verificar si hay editorial y fecha de publicación en esta fila
+            batch_list.append({
+                "title": title,
+                "publisher": publisher,
+                "publishDate": publish_date
+            })
+
+        # Ejecutar la query en bloques (cada BATCH_SIZE filas o al final del DataFrame)
+        if (idx + 1) % BATCH_SIZE == 0 or (idx + 1) == total_rows:
+            if batch_list:  # Solo ejecutar si hay datos en el batch
+                query = """
+                UNWIND $batch_list AS row
+                MATCH (b:Book {title: row.title})
+                MATCH (p:Publisher {name: row.publisher})
+                MERGE (b)-[r:PUBLISHED_BY]->(p)
+                SET r.publishDate = row.publishDate
+                """
+                tx.run(query, batch_list=batch_list)
+                print(f"Relaciones creadas para filas {idx + 1 - len(batch_list) + 1} a {idx + 1}.")
+                batch_list = []  # Limpiar el batch_list para el siguiente bloque
+
+    print("Relaciones entre libros y editoriales creadas.")
+
 
 def main():
     """
@@ -130,5 +294,9 @@ def main():
             session.execute_write(create_nodes_from_col_list, df, 'authors', 'Author', 'Autores')
             session.execute_write(create_book_nodes, df)
             session.execute_write(create_nodes_from_col_list, df, 'categories', 'Category', 'Cateogrías')
+            session.execute_write(create_publisher_nodes, df)
+            session.execute_write(create_books_authors_relations, df)
+            session.execute_write(create_books_categories_relations, df)
+            session.execute_write(create_books_publishers_relations, df)
 if __name__ == "__main__":
     main()
