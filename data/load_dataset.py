@@ -10,48 +10,52 @@ BOOKS_PATH = os.getenv('BOOKS_PATH')
 RATINGS_PATH = os.getenv('RATINGS_PATH')
 BATCH_SIZE = int(os.getenv("BATCH_SIZE")) # type: ignore
 
-def create_author_nodes(tx: ManagedTransaction, df: pd.DataFrame):
+def create_nodes_from_col_list(tx: ManagedTransaction, df: pd.DataFrame, column_name: str, label: str, printable_name: str) -> None:
     """
-    Función para crear nodos de autores en Neo4j a partir de un DataFrame.
-    Evita duplicados utilizando MERGE y optimiza con UNWIND, procesando en bloques de 5000 filas.
+    Función generalizada para crear nodos en Neo4j a partir de un DataFrame.
+    Evita duplicados utilizando MERGE y optimiza con UNWIND, procesando en bloques de BATCH_SIZE filas.
     
     Args:
-        tx: Sesión de transacción de Neo4j.
-        df: DataFrame que contiene la columna 'authors' con listas de autores.
+        tx (ManagedTransaction): Sesión de transacción de Neo4j.
+        df (pd.DataFrame): DataFrame que contiene los datos a procesar.
+        column_name (str): El nombre de la columna que contiene los datos (ej. 'authors', 'genres').
+        label (str): El tipo de nodo que se creará en Neo4j (ej. 'Author', 'Genre').
+        printable_name (str): El nombre del nodo que se mostrará en los mensajes de progreso (ej. 'Autores', 'Géneros').
     """
-    all_authors: list[str] = []
+    all_elements: list[str] = []
     total_rows = len(df)
     print(f"Procesando {total_rows} filas en bloques de {BATCH_SIZE}...")
     counter = 0
 
     # Procesar fila por fila
-    for idx, authors_str in enumerate(df['authors']): # type: ignore
-        if pd.notna(authors_str): # type: ignore
+    for idx, element_str in enumerate(df[column_name]):  # type: ignore # Obtener los elementos de la columna
+        if pd.notna(element_str): # type: ignore
             try:
-                authors_list = ast.literal_eval(authors_str) # type: ignore
-                if isinstance(authors_list, list):
-                    all_authors.extend(authors_list) # type: ignore
+                # Interpretar la cadena como una lista
+                element_list = ast.literal_eval(element_str) if isinstance(element_str, str) else element_str # type: ignore
+                if isinstance(element_list, list):
+                    all_elements.extend(element_list)  #type:ignore # Agregar los elementos al lote actual
             except (ValueError, SyntaxError):
                 continue
 
-        # Ejecutar la query cada vez que alcancemos un múltiplo del tamaño del bloque (5000 filas)
+        # Ejecutar la query en bloques (cada BATCH_SIZE filas o al final del DataFrame)
         if (idx + 1) % BATCH_SIZE == 0 or (idx + 1) == total_rows:
-            unique_authors: list[str] = list(set(all_authors))  # Remover duplicados dentro del bloque
+            unique_elements: list[str] = list(set(all_elements))  # Remover duplicados dentro del bloque
             
-            if unique_authors:  # Solo ejecutar la query si hay autores en el bloque
-                query = """
-                UNWIND $authors AS author_name
-                MERGE (a:Author {name: author_name})
+            if unique_elements:  # Ejecutar solo si hay elementos en el bloque
+                query = f"""
+                UNWIND $elements AS element_name
+                MERGE (e:{label} {{name: element_name}})
                 """
                 
-                # Ejecutar la query con el bloque de autores
-                tx.run(query, authors=unique_authors)
-                print(f"Autores creados para filas {0 + BATCH_SIZE * counter} a {idx + 1} (autores únicos en este bloque: {len(unique_authors)})") # type: ignore
+                # Ejecutar la query con el bloque actual de elementos
+                tx.run(query, elements=unique_elements) # type: ignore
+                print(f"{printable_name.capitalize()} creados para filas {0 + BATCH_SIZE * counter} a {idx + 1} ({printable_name} únicos en este bloque: {len(unique_elements)})")
                 counter += 1
             
-            all_authors = []  # Limpiar la lista para el siguiente bloque
-    print("Autores creados.")
+            all_elements = []  # Limpiar la lista para el siguiente bloque
 
+    print(f"{printable_name.capitalize()} creados.")
 
 def create_book_nodes(tx: ManagedTransaction, df: pd.DataFrame):
     '''
@@ -101,11 +105,6 @@ def create_book_nodes(tx: ManagedTransaction, df: pd.DataFrame):
             
     print("Libros creados.")
 
-
-def create_category_nodes(tx: ManagedTransaction, df: pd.DataFrame):
-    # TODO: Implementar función para crear nodos de categorías
-    pass
-
 def create_publisher_nodes(tx: ManagedTransaction, df: pd.DataFrame):
     # TODO: Implementar función para crear nodos de editoriales
     pass
@@ -128,7 +127,8 @@ def main():
     # Crear nodos
     with db.connect() as driver:
         with driver.session() as session:
-            session.execute_write(create_author_nodes, df)
+            session.execute_write(create_nodes_from_col_list, df, 'authors', 'Author', 'Autores')
             session.execute_write(create_book_nodes, df)
+            session.execute_write(create_nodes_from_col_list, df, 'categories', 'Category', 'Cateogrías')
 if __name__ == "__main__":
     main()
