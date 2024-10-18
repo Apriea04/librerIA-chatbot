@@ -156,15 +156,15 @@ def create_books_authors_relations(tx: ManagedTransaction, df: pd.DataFrame) -> 
     total_rows = len(df)
     batch_list: list[dict[str, str]] = []
     
-    for idx, row in df.iterrows():  # Iterar sobre las filas del DataFrame
-        title = row['Title']  # Título del libro
-        authors_str = row['authors']  # Autores del libro (cadena con lista)
+    for idx, row in df.iterrows():  #type:ignore # Iterar sobre las filas del DataFrame
+        title = row['Title'] #type:ignore  # Título del libro
+        authors_str = row['authors'] #type:ignore  # Autores del libro (cadena con lista)
         
-        if pd.notna(authors_str):  # Verificar si hay autores en esta fila
+        if pd.notna(authors_str): #type:ignore # Verificar si hay autores en esta fila
             try:
-                authors = ast.literal_eval(authors_str)  # Convertir la cadena en lista
+                authors = ast.literal_eval(authors_str) #type:ignore # Convertir la cadena en lista
                 if isinstance(authors, list):
-                    for author in authors:
+                    for author in authors: #type:ignore
                         batch_list.append({
                             "title": title,
                             "author": author
@@ -173,7 +173,7 @@ def create_books_authors_relations(tx: ManagedTransaction, df: pd.DataFrame) -> 
                 continue
 
         # Ejecutar la query en bloques (cada BATCH_SIZE filas o al final del DataFrame)
-        if (idx + 1) % BATCH_SIZE == 0 or (idx + 1) == total_rows:
+        if (idx + 1) % BATCH_SIZE == 0 or (idx + 1) == total_rows: #type:ignore
             if batch_list:  # Solo ejecutar si hay datos en el batch
                 query = """
                 UNWIND $batch_list AS row
@@ -182,7 +182,7 @@ def create_books_authors_relations(tx: ManagedTransaction, df: pd.DataFrame) -> 
                 MERGE (b)-[:WRITTEN_BY]->(a)
                 """
                 tx.run(query, batch_list=batch_list)
-                print(f"Relaciones creadas para filas {idx + 1 - len(batch_list) + 1} a {idx + 1}.")
+                print(f"Relaciones creadas para filas {idx + 1 - len(batch_list) + 1} a {idx + 1}.") #type:ignore
                 batch_list = []  # Limpiar el batch_list para el siguiente bloque
 
     print("Relaciones entre libros y autores creadas.")
@@ -200,15 +200,15 @@ def create_books_categories_relations(tx: ManagedTransaction, df: pd.DataFrame) 
     total_rows = len(df)
     batch_list: list[dict[str, str]] = []
     
-    for idx, row in df.iterrows():  # Iterar sobre las filas del DataFrame
-        title = row['Title']  # Título del libro
-        categories_str = row['categories']  # Categorías del libro (cadena con lista)
+    for idx, row in df.iterrows(): #type:ignore # Iterar sobre las filas del DataFrame
+        title = row['Title'] #type:ignore # Título del libro
+        categories_str = row['categories'] #type:ignore # Categorías del libro (cadena con lista)
         
-        if pd.notna(categories_str):  # Verificar si hay categorías en esta fila
+        if pd.notna(categories_str): #type:ignore # Verificar si hay categorías en esta fila
             try:
-                categories = ast.literal_eval(categories_str)  # Convertir la cadena en lista
+                categories = ast.literal_eval(categories_str) #type:ignore # Convertir la cadena en lista
                 if isinstance(categories, list):
-                    for category in categories:
+                    for category in categories: #type:ignore
                         batch_list.append({
                             "title": title,
                             "category": category
@@ -217,7 +217,7 @@ def create_books_categories_relations(tx: ManagedTransaction, df: pd.DataFrame) 
                 continue
 
         # Ejecutar la query en bloques (cada BATCH_SIZE filas o al final del DataFrame)
-        if (idx + 1) % BATCH_SIZE == 0 or (idx + 1) == total_rows:
+        if (idx + 1) % BATCH_SIZE == 0 or (idx + 1) == total_rows: #type:ignore
             if batch_list:  # Solo ejecutar si hay datos en el batch
                 query = """
                 UNWIND $batch_list AS row
@@ -226,7 +226,7 @@ def create_books_categories_relations(tx: ManagedTransaction, df: pd.DataFrame) 
                 MERGE (b)-[:BELONGS_TO]->(c)
                 """
                 tx.run(query, batch_list=batch_list)
-                print(f"Relaciones creadas para filas {idx + 1 - len(batch_list) + 1} a {idx + 1}.")
+                print(f"Relaciones creadas para filas {idx + 1 - len(batch_list) + 1} a {idx + 1}.") #type:ignore
                 batch_list = []  # Limpiar el batch_list para el siguiente bloque
 
     print("Relaciones entre libros y categorías creadas.")
@@ -244,12 +244,12 @@ def create_books_publishers_relations(tx: ManagedTransaction, df: pd.DataFrame) 
     total_rows = len(df)
     batch_list: list[dict[str, str]] = []
     
-    for idx, row in df.iterrows():  # Iterar sobre las filas del DataFrame
-        title = row['Title']  # Título del libro
-        publisher = row['publisher']  # Editorial del libro
-        publish_date = row['publishedDate']  # Fecha de publicación del libro
+    for idx, row in df.iterrows(): #type:ignore # Iterar sobre las filas del DataFrame
+        title = row['Title'] #type:ignore # Título del libro
+        publisher = row['publisher'] #type:ignore # Editorial del libro
+        publish_date = row['publishedDate'] #type:ignore # Fecha de publicación del libro
         
-        if pd.notna(publisher) and pd.notna(publish_date):  # Verificar si hay editorial y fecha de publicación en esta fila
+        if pd.notna(publisher) and pd.notna(publish_date): #type:ignore # Verificar si hay editorial y fecha de publicación en esta fila
             batch_list.append({
                 "title": title,
                 "publisher": publisher,
@@ -257,7 +257,7 @@ def create_books_publishers_relations(tx: ManagedTransaction, df: pd.DataFrame) 
             })
 
         # Ejecutar la query en bloques (cada BATCH_SIZE filas o al final del DataFrame)
-        if (idx + 1) % BATCH_SIZE == 0 or (idx + 1) == total_rows:
+        if (idx + 1) % BATCH_SIZE == 0 or (idx + 1) == total_rows: #type:ignore
             if batch_list:  # Solo ejecutar si hay datos en el batch
                 query = """
                 UNWIND $batch_list AS row
@@ -267,7 +267,7 @@ def create_books_publishers_relations(tx: ManagedTransaction, df: pd.DataFrame) 
                 SET r.publishDate = row.publishDate
                 """
                 tx.run(query, batch_list=batch_list)
-                print(f"Relaciones creadas para filas {idx + 1 - len(batch_list) + 1} a {idx + 1}.")
+                print(f"Relaciones creadas para filas {idx + 1 - len(batch_list) + 1} a {idx + 1}.") #type:ignore
                 batch_list = []  # Limpiar el batch_list para el siguiente bloque
 
     print("Relaciones entre libros y editoriales creadas.")
