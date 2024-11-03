@@ -77,30 +77,32 @@ def create_book_nodes(tx: ManagedTransaction, df: pd.DataFrame):
         description = row['description'] # type: ignore
         image = row['image'] # type: ignore
 
-        # Agregar cada fila al batch_list
-        batch_list.append({
-            "title": title,
-            "description": description,
-            "image": image
-        })
+        # Solo agregar al batch_list si el título no es nulo
+        if pd.notna(title): # type: ignore
+            batch_list.append({
+                "title": title,
+                "description": description,
+                "image": image
+            })
         
         # Ejecuta la query en bloque cuando se alcanza el tamaño del batch o es la última fila
         if (idx + 1) % BATCH_SIZE == 0 or (idx + 1) == total_rows: # type: ignore
-            query = """
-            UNWIND $batch_list AS row
-            MERGE (b:Book {title: row.title})
-            SET b.description = row.description,
-                b.image = row.image
-            """
-            
-            # Ejecuta la query con el lote actual
-            tx.run(query, batch_list=batch_list)
-            
-            # Imprimir información de progreso
-            print(f"Libros creados para filas {idx + 1 - len(batch_list) + 1} a {idx + 1}.") # type: ignore
-            
-            # Limpia el batch_list después de ejecutar la query
-            batch_list = []
+            if batch_list:  # Solo ejecutar si hay datos en el batch
+                query = """
+                UNWIND $batch_list AS row
+                MERGE (b:Book {title: row.title})
+                SET b.description = row.description,
+                    b.image = row.image
+                """
+                
+                # Ejecuta la query con el lote actual
+                tx.run(query, batch_list=batch_list)
+                
+                # Imprimir información de progreso
+                print(f"Libros creados para filas {idx + 1 - len(batch_list) + 1} a {idx + 1}.") # type: ignore
+                
+                # Limpia el batch_list después de ejecutar la query
+                batch_list = []
             
     print("Libros creados.")
 
@@ -291,7 +293,7 @@ def main():
     # Crear nodos
     with db.connect() as driver:
         with driver.session() as session:
-            session.execute_write(create_nodes_from_col_list, df, 'authors', 'Author', 'Autores')
+            #session.execute_write(create_nodes_from_col_list, df, 'authors', 'Author', 'Autores')
             session.execute_write(create_book_nodes, df)
             session.execute_write(create_nodes_from_col_list, df, 'categories', 'Category', 'Cateogrías')
             session.execute_write(create_publisher_nodes, df)
