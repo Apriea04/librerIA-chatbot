@@ -111,6 +111,24 @@ class NEO4jDatasetLoader:
 
         # Cargar nodos de autores usando create_nodes
         self.create_nodes(authors_df, "Author", properties, primary_property)
+        
+    def create_category_nodes(self):
+        '''Crea nodos de categorías únicas en Neo4j evitando duplicados.'''
+        # Extraer y limpiar categorías únicas en memoria
+        unique_authors: set[str] = set()
+        for authors in self.df['categories'].dropna().astype(str):
+            authors_list = ast.literal_eval(authors)
+            unique_authors.update(authors_list)  # Añade cada autor en la lista al conjunto de autores únicos
+
+        # Crear DataFrame temporal para los autores únicos
+        authors_df = pd.DataFrame({"name": list(unique_authors)})
+
+        # Definir propiedades y propiedad principal
+        properties = {"name": "name"}
+        primary_property = "name"
+
+        # Cargar nodos de autores usando create_nodes
+        self.create_nodes(authors_df, "Category", properties, primary_property)
 
 def main():
     if BOOKS_PATH is None:
@@ -119,6 +137,7 @@ def main():
     try:
         loader.create_book_nodes()
         loader.create_author_nodes()
+        loader.create_category_nodes()
     finally:
         loader.close()
 
