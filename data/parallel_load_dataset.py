@@ -89,7 +89,8 @@ class NEO4jDatasetLoader:
         properties = {
             "Title": "name",
             "description": "description",
-            "image": "image"
+            "image": "image",
+            "infoLink": "infoLink",
         }
         primary_property = "name"
         self.create_nodes(self.df, "Book", properties, primary_property)
@@ -130,6 +131,8 @@ class NEO4jDatasetLoader:
         # Cargar nodos de autores usando create_nodes
         self.create_nodes(authors_df, "Category", properties, primary_property)
 
+    def p(self):
+        pass
 def main():
     if BOOKS_PATH is None:
         raise ValueError("BOOKS_PATH environment variable is not set")
