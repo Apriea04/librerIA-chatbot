@@ -1,7 +1,6 @@
 from neo4j import GraphDatabase, Driver
 import os
 from dotenv import load_dotenv
-import pandas as pd
 
 def connect() -> Driver:
     '''

@@ -247,7 +247,6 @@ class NEO4jDatasetLoader:
         )
 
         try:
-            print(query)
             tx.run(query, batch_list=batch_list)  # type: ignore
             print(
                 f"Batch insert successful. Inserted {len(batch_list)} {relationship_type} relationships."
@@ -256,32 +255,42 @@ class NEO4jDatasetLoader:
             print(f"Error al procesar el batch de {relationship_type}: {e}")
 
     def _build_merge_relationship_query(
-        self,
-        source_node_label: str,
-        target_node_label: str,
-        relationship_type: str,
-        properties: Dict[str, str],
+    self,
+    source_node_label: str,
+    target_node_label: str,
+    relationship_type: str,
+    properties: Dict[str, str],
     ) -> str:
-        """Construye una consulta Cypher para hacer MERGE de relaciones en Neo4j."""
-        set_clauses = [f"r.{prop} = ${prop}" for prop in properties.values()]
+        """Construye una consulta Cypher para hacer MERGE de relaciones en Neo4j, añadiendo publish_date opcionalmente."""
+        
+        # Construir cláusulas SET dinámicas según las propiedades presentes
+        set_clauses = []
+        for prop_key, prop_value in properties.items():
+            if prop_key == "publish_date":
+                # Solo establecer publish_date si no es nulo
+                set_clauses.append(f"r.{prop_key} = CASE WHEN row.{prop_value} IS NOT NULL THEN row.{prop_value} ELSE r.{prop_key} END")
+            else:
+                set_clauses.append(f"r.{prop_key} = row.{prop_value}")
+
+        # Combina todas las cláusulas SET en una sola línea
         set_clause = ", ".join(set_clauses)
-        query = (
-            f"UNWIND $batch_list as row "
-            f"MATCH (a:{source_node_label} {{name: row.source_id}}), (b:{target_node_label} {{name: row.target_id}}) "
-            f"MERGE (a)-[r:{relationship_type}]->(b) "
-            f"SET {set_clause}"
-        )
+
+        query = f"""
+        UNWIND $batch_list as row 
+        MATCH (a:{source_node_label} {{name: row.source_id}}), (b:{target_node_label} {{name: row.target_id}}) 
+        MERGE (a)-[r:{relationship_type}]->(b) 
+        SET {set_clause}
+        """
         return query
 
-    def add_published_relation(
-        self,
-    ):
-        """Crea relaciones PUBLISHED entre Book y Publisher usando las columnas Title, Publisher y PublishDate."""
 
+    def add_published_relation(self):
+        """Crea relaciones PUBLISHED entre Book y Publisher usando las columnas Title, Publisher y PublishDate."""
+        
         # Crear un DataFrame con las columnas necesarias para la relación
         relationships_df = self.df[["Title", "publisher", "publishedDate"]].copy()
 
-        # Renombrar las columnas para que coincidan con las propiedades esperadas por los métodos de creación de relaciones
+        # Renombrar las columnas para que coincidan con las propiedades esperadas
         relationships_df.rename(
             columns={
                 "Title": "source_id",
@@ -291,10 +300,8 @@ class NEO4jDatasetLoader:
             inplace=True,
         )
 
-        # Definir las propiedades de la relación
         properties = {"publish_date": "publish_date"}
 
-        # Procesar los lotes de relaciones
         self._process_batch_relationships(
             batch_df=relationships_df,
             source_node_label="Book",
@@ -303,7 +310,7 @@ class NEO4jDatasetLoader:
             properties=properties,
         )
 
-
+    
 def main():
     if BOOKS_PATH is None:
         raise ValueError("BOOKS_PATH environment variable is not set")

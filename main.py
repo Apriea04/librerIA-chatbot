@@ -2,10 +2,12 @@ import time
 
 import data.load_dataset as data
 import data.parallel_load_dataset as parallel_data
+import utils.load_dataset as load_dataset
 
 start_time = time.time()
 
-parallel_data.main()
+#parallel_data.main()
+load_dataset.load_dataset()
 
 end_time = time.time()
 elapsed_time = end_time - start_time
