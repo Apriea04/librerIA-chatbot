@@ -26,7 +26,11 @@ def load_dataset():
                         ratingsCount: CASE WHEN row.ratingsCount IS NOT NULL AND row.ratingsCount <> "" THEN toInteger(row.ratingsCount) ELSE NULL END
                     })
                     WITH b, row
-                    FOREACH (authorName IN CASE WHEN row.authors IS NOT NULL THEN split(row.authors, ",") ELSE [] END |
+                    FOREACH (authorName IN CASE
+                        WHEN row.authors IS NOT NULL AND size(row.authors) > 2 THEN
+                            split(substring(row.authors, 1, size(row.authors) - 2), ",")
+                        ELSE []
+                        END |
                         MERGE (a:Author {name: trim(authorName)})
                         CREATE (b)-[:WRITTEN_BY]->(a)
                     )
