@@ -1,14 +1,14 @@
 import utils.db as db
 
-
 def load_dataset():
     with db.connect() as driver:
         with driver.session() as session:
-            # Crear índices en consultas separadas
+            print("Creating indexes...")
             session.run("CREATE INDEX FOR (b:Book) ON (b.title);")
             session.run("CREATE INDEX FOR (u:User) ON (u.user_id);")
+            print("Indexes created.")
 
-            # Crear nodos de libros con propiedades opcionales, ignorando filas sin título
+            print("Loading books data...")
             session.run("""
                 LOAD CSV WITH HEADERS FROM 'file:///books_data.csv' AS row
                 WITH row
@@ -24,8 +24,9 @@ def load_dataset():
                     b.categories = CASE WHEN row.categories IS NOT NULL AND row.categories <> "" THEN row.categories ELSE NULL END,
                     b.ratingsCount = CASE WHEN row.ratingsCount IS NOT NULL AND row.ratingsCount <> "" THEN toInteger(row.ratingsCount) ELSE NULL END;
             """)
+            print("Books data loaded.")
 
-            # Crear nodos de autores y relaciones WRITTEN_BY
+            print("Loading authors data...")
             session.run("""
                 LOAD CSV WITH HEADERS FROM 'file:///books_data.csv' AS row
                 WITH row
@@ -37,8 +38,9 @@ def load_dataset():
                     MERGE (b)-[:WRITTEN_BY]->(a)
                 );
             """)
+            print("Authors data loaded.")
 
-            # Crear nodos de editoriales y relaciones PUBLISHED_BY
+            print("Loading publishers data...")
             session.run("""
                 LOAD CSV WITH HEADERS FROM 'file:///books_data.csv' AS row
                 WITH row
@@ -49,8 +51,9 @@ def load_dataset():
                 MERGE (p:Publisher {name: row.publisher})
                 MERGE (b)-[:PUBLISHED_BY]->(p);
             """)
+            print("Publishers data loaded.")
 
-            # Crear nodos de usuarios y reseñas con relaciones
+            print("Loading users and reviews data...")
             session.run("""
                 LOAD CSV WITH HEADERS FROM 'file:///books_rating.csv' AS row
                 WITH row
@@ -68,8 +71,9 @@ def load_dataset():
 
                 MERGE (u)-[:WROTE_REVIEW]->(r);
             """)
+            print("Users and reviews data loaded.")
 
-            # Crear relaciones entre libros y reseñas
+            print("Creating relationships between books and reviews...")
             session.run("""
                 LOAD CSV WITH HEADERS FROM 'file:///books_rating.csv' AS row
                 WITH row
@@ -79,3 +83,4 @@ def load_dataset():
                 MATCH (r:Review {summary: row.`review/summary`})
                 MERGE (r)-[:REVIEWS]->(b);
             """)
+            print("Relationships between books and reviews created.")

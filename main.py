@@ -2,7 +2,7 @@ import time
 
 import data.load_dataset as data
 import data.parallel_load_dataset as parallel_data
-import utils.load_dataset as load_dataset
+import utils.load_dataset_optimized as load_dataset
 
 start_time = time.time()
 
