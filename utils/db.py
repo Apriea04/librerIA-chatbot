@@ -16,9 +16,10 @@ def connect() -> Driver:
 
 def restart():
     '''
-    Deletes everything in the database: nodes and relationships
+    Deletes everything in the database: nodes, relationships and indexes
     '''
     with connect() as driver:
         with driver.session() as session:
             session.run("MATCH (n) DETACH DELETE n")
+            session.run("CALL apoc.schema.assert({}, {})")
     print("Everything deleted")
