@@ -8,9 +8,10 @@ def load_dataset():
             session.run("CREATE INDEX IF NOT EXISTS FOR (u:User) ON (u.user_id);")
             session.run("CREATE INDEX IF NOT EXISTS FOR (a:Author) ON (a.name);")
             session.run("CREATE INDEX IF NOT EXISTS FOR (p:Publisher) ON (p.name);")
+            session.run("CREATE INDEX IF NOT EXISTS FOR (g:Genre) ON (g.name);")  # Índice para género
             print("Indexes created.")
 
-            print("Loading books, authors, and publishers data...")
+            print("Loading books, authors, publishers, and genres data...")
             session.run("""
                 CALL apoc.periodic.iterate(
                     'LOAD CSV WITH HEADERS FROM "file:///books_data.csv" AS row RETURN row',
@@ -22,7 +23,6 @@ def load_dataset():
                         previewLink: CASE WHEN row.previewLink IS NOT NULL AND row.previewLink <> "" THEN row.previewLink ELSE NULL END,
                         publishedDate: CASE WHEN row.publishedDate IS NOT NULL AND row.publishedDate <> "" THEN row.publishedDate ELSE NULL END,
                         infoLink: CASE WHEN row.infoLink IS NOT NULL AND row.infoLink <> "" THEN row.infoLink ELSE NULL END,
-                        categories: CASE WHEN row.categories IS NOT NULL AND row.categories <> "" THEN row.categories ELSE NULL END,
                         ratingsCount: CASE WHEN row.ratingsCount IS NOT NULL AND row.ratingsCount <> "" THEN toInteger(row.ratingsCount) ELSE NULL END
                     })
                     WITH b, row
@@ -37,11 +37,19 @@ def load_dataset():
                     WITH b, row
                     WHERE row.publisher IS NOT NULL
                     MERGE (p:Publisher {name: row.publisher})
-                    CREATE (b)-[:PUBLISHED_BY]->(p)',
+                    CREATE (b)-[:PUBLISHED_BY]->(p)
+                    WITH b, row
+                    WHERE row.categories IS NOT NULL
+                    // Limpia las comillas y corchetes, y divide las categorías por comas
+                    WITH b, split(replace(replace(row.categories, "[", ""), "]", ""), ",") AS genres
+                    FOREACH (genreName IN genres |
+                        MERGE (g:Genre {name: trim(genreName)})  // MERGE para evitar duplicados de género
+                        MERGE (b)-[:BELONGS_TO]->(g)  // MERGE en la relación para evitar duplicados de relación
+                    )',
                     {batchSize: 10000, parallel: true}
                 )
             """)
-            print("Books, authors, and publishers data loaded.")
+            print("Books, authors, publishers, and genres data loaded.")
 
             print("Loading users, reviews, and relationships...")
             session.run("""
@@ -60,7 +68,7 @@ def load_dataset():
                     WITH r, row
                     WHERE row.Title IS NOT NULL AND row.Title <> ""
                     MATCH (b:Book {title: row.Title})
-                    CREATE (r)-[:REVIEWS]->(b)',
+                    CREATE (r)-[:REVIEWS]->(b) ',
                     {batchSize: 10000, parallel: true}
                 )
             """)
