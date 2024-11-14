@@ -3,6 +3,7 @@ import utils.db as db
 def load_dataset():
     with db.connect() as driver:
         with driver.session() as session:
+            # Crear índices para mejorar la eficiencia de la carga y consultas
             print("Creating indexes...")
             session.run("CREATE INDEX IF NOT EXISTS FOR (b:Book) ON (b.title);")
             session.run("CREATE INDEX IF NOT EXISTS FOR (u:User) ON (u.user_id);")
@@ -11,6 +12,7 @@ def load_dataset():
             session.run("CREATE INDEX IF NOT EXISTS FOR (g:Genre) ON (g.name);")  # Índice para género
             print("Indexes created.")
 
+            # Carga de datos de libros, autores, editoriales y géneros
             print("Loading books, authors, publishers, and genres data...")
             session.run("""
                 CALL apoc.periodic.iterate(
@@ -40,36 +42,46 @@ def load_dataset():
                     CREATE (b)-[:PUBLISHED_BY]->(p)
                     WITH b, row
                     WHERE row.categories IS NOT NULL
-                    // Limpia las comillas y corchetes, y divide las categorías por comas
                     WITH b, split(replace(replace(row.categories, "[", ""), "]", ""), ",") AS genres
                     FOREACH (genreName IN genres |
-                        MERGE (g:Genre {name: trim(genreName)})  // MERGE para evitar duplicados de género
-                        MERGE (b)-[:BELONGS_TO]->(g)  // MERGE en la relación para evitar duplicados de relación
+                        MERGE (g:Genre {name: trim(genreName)})
+                        MERGE (b)-[:BELONGS_TO]->(g)
                     )',
                     {batchSize: 10000, parallel: true}
                 )
             """)
             print("Books, authors, publishers, and genres data loaded.")
 
+            # Carga de datos de usuarios y reseñas
             print("Loading users, reviews, and relationships...")
             session.run("""
                 CALL apoc.periodic.iterate(
-                    'LOAD CSV WITH HEADERS FROM "file:///books_rating.csv" AS row RETURN row',
-                    'MERGE (u:User {user_id: row.User_id})
-                    SET u.profileName = row.profileName
+                    'LOAD CSV WITH HEADERS FROM "file:///books_rating_processed.csv" AS row RETURN row',
+                    'FOREACH(ignoreMe IN CASE WHEN row.User_id IS NOT NULL THEN [1] ELSE [] END |
+                        MERGE (u:User {userId: row.User_id})
+                        SET u.profileName = row.profileName
+                    )
+                    // Crear el nodo de revisión independientemente de la existencia del usuario
                     CREATE (r:Review {
                         helpfulness: row.`review/helpfulness`,
-                        score: toFloat(row.`review/score`),
-                        time: datetime({epochSeconds: toInteger(row.`review/time`)}),
+                        score: row.`review/score`,
+                        time: row.`review/time`,
                         summary: row.`review/summary`,
                         text: row.`review/text`
                     })
-                    CREATE (u)-[:WROTE_REVIEW]->(r)
+                    
+                    // Establecer la relación entre User y Review si el usuario existe
+                    FOREACH(ignoreMe IN CASE WHEN row.User_id IS NOT NULL THEN [1] ELSE [] END |
+                        MERGE (u)-[:WROTE_REVIEW]->(r)
+                    )
+
+                    // Crear la relación entre Review y Book si el título existe
                     WITH r, row
                     WHERE row.Title IS NOT NULL AND row.Title <> ""
                     MATCH (b:Book {title: row.Title})
-                    CREATE (r)-[:REVIEWS]->(b) ',
-                    {batchSize: 10000, parallel: true}
+                    SET b.bookId = row.Id
+                    CREATE (r)-[:REVIEWS]->(b)',
+                    {batchSize: 10000, parallel: false}
                 )
             """)
             print("Users, reviews, and relationships loaded.")
