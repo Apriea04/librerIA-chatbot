@@ -20,6 +20,12 @@ def restart():
     '''
     with connect() as driver:
         with driver.session() as session:
-            session.run("MATCH (n) DETACH DELETE n")
+            session.run("""
+                CALL apoc.periodic.iterate(
+                    'MATCH (n) RETURN n',
+                    'DETACH DELETE n',
+                    {batchSize: 100000}
+                )
+            """)
             session.run("CALL apoc.schema.assert({}, {})")
     print("Everything deleted")
