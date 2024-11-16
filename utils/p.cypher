@@ -35,10 +35,10 @@ CALL apoc.periodic.iterate(
                         MERGE (g:Genre {name: trim(genreName)})
                         MERGE (b)-[:BELONGS_TO]->(g)
                     )',
-                    {batchSize: 10000, parallel: true}
+                    {batchSize: 100000, parallel: true}
                 );
 CALL apoc.periodic.iterate(
-                    'LOAD CSV WITH HEADERS FROM "file:///books_rating_processed.csv" AS row RETURN row',
+                    'LOAD CSV WITH HEADERS FROM "file:///books_rating_processed_reduced.csv" AS row RETURN row',
                     'FOREACH(ignoreMe IN CASE WHEN row.User_id IS NOT NULL THEN [1] ELSE [] END |
                         MERGE (u:User {userId: row.User_id})
                         SET u.profileName = row.profileName
@@ -63,5 +63,5 @@ CALL apoc.periodic.iterate(
                     MATCH (b:Book {title: row.Title})
                     SET b.bookId = row.Id
                     CREATE (r)-[:REVIEWS]->(b)',
-                    {batchSize: 10000, parallel: false}
+                    {batchSize: 40000, parallel: true}
                 );
