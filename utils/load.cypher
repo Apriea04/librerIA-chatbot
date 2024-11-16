@@ -38,7 +38,7 @@ CALL apoc.periodic.iterate(
         MERGE (g:Genre {name: trim(genreName)}) // Usa MERGE para géneros
         MERGE (b)-[:BELONGS_TO]->(g)
     )',
-    {batchSize: 100000, parallel: true}
+    {batchSize: 100000, parallel: false}
 );
 
 CALL apoc.periodic.iterate(
@@ -69,5 +69,5 @@ CALL apoc.periodic.iterate(
     SET b.bookId = row.Id
     MERGE (r)-[:REVIEWS]->(b)
     ',
-    {batchSize: 40000, parallel: true}
+    {batchSize: 100000, parallel: false}
 );
