@@ -1,0 +1,1 @@
+- Crear embeddings usando node2vec con gpu
