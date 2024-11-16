@@ -44,28 +44,30 @@ CALL apoc.periodic.iterate(
 CALL apoc.periodic.iterate(
     'LOAD CSV WITH HEADERS FROM "file:///books_rating_processed_reduced.csv" AS row RETURN row',
     '
-    FOREACH(ignoreMe IN CASE WHEN row.User_id IS NOT NULL THEN [1] ELSE [] END |
-        MERGE (u:User {userId: row.User_id}) // Usa MERGE para usuarios
-        SET u.profileName = row.profileName
-    )
-    
+    // Crear o actualizar el nodo Usuario
+    WITH row
+    WHERE row.User_id IS NOT NULL AND row.User_id <> ""
+    MERGE (u:User {userId: trim(row.User_id)}) // Usa trim para evitar espacios
+    SET u.profileName = row.profileName
+
+    // Crear la reseña
     CREATE (r:Review {
         helpfulness: row.`review/helpfulness`,
-        score: row.`review/score`,
+        score: toFloat(row.`review/score`), // Convierte a float si es necesario
         time: row.`review/time`,
         summary: row.`review/summary`,
         text: row.`review/text`
     })
 
-    FOREACH(ignoreMe IN CASE WHEN row.User_id IS NOT NULL THEN [1] ELSE [] END |
-        MERGE (u)-[:WROTE_REVIEW]->(r)
-    )
+    // Relacionar usuario con la reseña
+    MERGE (u)-[:WROTE_REVIEW]->(r)
 
+    // Relacionar reseña con el libro
     WITH r, row
     WHERE row.Title IS NOT NULL AND row.Title <> ""
-    MATCH (b:Book {title: row.Title}) // Asegúrate de que el libro ya exista
+    MATCH (b:Book {title: trim(row.Title)}) // Usa trim para evitar espacios
     SET b.bookId = row.Id
-    MERGE (r)-[:REVIEWS]->(b) // Usa MERGE para evitar relaciones duplicadas
+    MERGE (r)-[:REVIEWS]->(b)
     ',
     {batchSize: 40000, parallel: true}
 );
