@@ -1,10 +1,11 @@
 //TODO: se recomienda primero crear las contrains y uan vez cargados los datos, crear los indices
 // Hay que crear los vector index
-CREATE INDEX IF NOT EXISTS FOR (b:Book) ON (b.title);
-CREATE INDEX IF NOT EXISTS FOR (u:User) ON (u.userId);
-CREATE INDEX IF NOT EXISTS FOR (a:Author) ON (a.name);
-CREATE INDEX IF NOT EXISTS FOR (p:Publisher) ON (p.name);
-CREATE INDEX IF NOT EXISTS FOR (g:Genre) ON (g.name);
+
+CREATE CONSTRAINT IF NOT EXISTS FOR (b:Book) REQUIRE b.title IS UNIQUE;
+CREATE CONSTRAINT IF NOT EXISTS FOR (u:User) REQUIRE u.userId IS UNIQUE;
+CREATE CONSTRAINT IF NOT EXISTS FOR (a:Author) REQUIRE a.name IS UNIQUE;
+CREATE CONSTRAINT IF NOT EXISTS FOR (p:Publisher) REQUIRE p.name IS UNIQUE;
+CREATE CONSTRAINT IF NOT EXISTS FOR (g:Genre) REQUIRE g.name IS UNIQUE;
 
 CALL apoc.periodic.iterate(
     'LOAD CSV WITH HEADERS FROM "file:///books_data.csv" AS row RETURN row',
@@ -73,3 +74,9 @@ CALL apoc.periodic.iterate(
     ',
     {batchSize: 100000, parallel: false}
 );
+
+CREATE INDEX IF NOT EXISTS FOR (b:Book) ON (b.title);
+CREATE INDEX IF NOT EXISTS FOR (u:User) ON (u.userId);
+CREATE INDEX IF NOT EXISTS FOR (a:Author) ON (a.name);
+CREATE INDEX IF NOT EXISTS FOR (p:Publisher) ON (p.name);
+CREATE INDEX IF NOT EXISTS FOR (g:Genre) ON (g.name);

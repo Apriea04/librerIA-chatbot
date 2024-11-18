@@ -7,7 +7,7 @@ def connect() -> Driver:
     """
     Connect to the Neo4j database for the project
     """
-    load_dotenv()
+    load_dotenv(override=True)
 
     uri = os.getenv("NEO4J_URI")
     user = os.getenv("NEO4J_USERNAME")
