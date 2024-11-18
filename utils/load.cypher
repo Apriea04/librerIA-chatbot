@@ -1,3 +1,5 @@
+//TODO: se recomienda primero crear las contrains y uan vez cargados los datos, crear los indices
+// Hay que crear los vector index
 CREATE INDEX IF NOT EXISTS FOR (b:Book) ON (b.title);
 CREATE INDEX IF NOT EXISTS FOR (u:User) ON (u.userId);
 CREATE INDEX IF NOT EXISTS FOR (a:Author) ON (a.name);
