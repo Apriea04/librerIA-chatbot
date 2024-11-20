@@ -8,6 +8,7 @@ from utils import db
 from utils import graph_to_pytorch as gtp
 
 from sentence_transformers import SentenceTransformer
+from tqdm import tqdm
 
 load_dotenv(override=True)
 NEO4J_URI = os.getenv("NEO4J_URI")
@@ -167,17 +168,66 @@ class DBManager:
             result = session.run(query)  # type: ignore
             return [record.data() for record in result]
 
-    def _generate_text_embedding(self, text: str):
-
+    def _generate_text_embedding(self, texts: list):
         inputs = self.tokenizer(
-            text, return_tensors="pt", padding=True, truncation=True
+            texts, return_tensors="pt", padding=True, truncation=True
         )
         inputs = {key: val.to(self.device) for key, val in inputs.items()}
         with torch.no_grad():
             outputs = self.model(**inputs)
-            embedding = outputs.last_hidden_state.mean(dim=1)
-        return embedding.cpu().numpy().tolist()
+            embeddings = outputs.last_hidden_state.mean(dim=1)
+        return embeddings.cpu().numpy().tolist()
 
-    def generate_embeddings_for(self, node_label: str, node_property:str, model_name: str):
+    def generate_embeddings_for(self, node_label: str, node_property: str, node_id_property: str, model_name: str):
         self._load_tokenizer(model_name)
-        return self._generate_text_embedding("Había una vez un barco chiquito")
+        
+        if node_id_property:
+            query = f"MATCH (n:{node_label}) WHERE n.{node_property} IS NOT NULL RETURN n.{node_id_property} as nodeId, n.{node_property} as text"
+        else:
+            query = f"MATCH (n:{node_label}) WHERE n.{node_property} IS NOT NULL RETURN elementId(n) as nodeId, n.{node_property} as text"
+        data = self.fetch_data(query)
+        
+        embeddings = []
+        texts = [row["text"] for row in data]
+        node_ids = [row["nodeId"] for row in data]
+        
+        batch_size = 600
+        for i in tqdm(range(0, len(texts), batch_size), desc="Generating embeddings"):
+            batch_texts = texts[i:i + batch_size]
+            batch_node_ids = node_ids[i:i + batch_size]
+            batch_embeddings = self._generate_text_embedding(batch_texts)
+            embeddings.extend(zip(batch_node_ids, batch_embeddings))
+        
+        embeddings_df = pd.DataFrame(embeddings, columns=[node_id_property if node_id_property else "elementId", "embedding"])
+        
+        batch_size = 10000
+        # Obtener la dimensión del vector del primer embedding
+        vector_dimension = len(embeddings[0][1])  # Cambiado para obtener la dimensión directamente de la lista
+        
+        for i in tqdm(range(0, len(embeddings), batch_size), desc="Writing embeddings to database"):
+            batch = embeddings[i:i + batch_size]
+            if node_id_property:
+                query = f"""
+                UNWIND $batch AS row
+                MATCH (n:{node_label} {{{node_id_property}: row.nodeId}})
+                SET n.{node_property}_embedding = row.embedding
+                """
+            else:
+                query = f"""
+                UNWIND $batch AS row
+                MATCH (n:{node_label}) WHERE elementId(n) = row.nodeId
+                SET n.{node_property}_embedding = row.embedding
+                """
+            with self.db_connection.session() as session:
+                session.run(query, batch=[{"nodeId": node_id, "embedding": embedding} for node_id, embedding in batch])
+
+        # Actualizado para usar la dimensión obtenida directamente
+        self.create_vector_index(node_label, f"{node_property}_embedding", vector_dimension)
+
+    def create_vector_index(self, node_label: str, vector_property: str, vector_dimensions: int):
+        query = f"""CREATE VECTOR INDEX {vector_property}_index IF NOT EXISTS FOR (n:{node_label}) ON (n.{vector_property}) OPTIONS {{ indexConfig: {{
+            `vector.dimensions`: {vector_dimensions},
+            `vector.similarity_function`: 'cosine'
+            }}}}"""
+        with self.db_connection.session() as session:
+            session.run(query)
