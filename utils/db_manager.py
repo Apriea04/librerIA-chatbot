@@ -1,10 +1,13 @@
 import os
 from dotenv import load_dotenv
 import pandas as pd
+from py2neo import Graph
+from transformers import AutoModel, AutoTokenizer
 import torch
 from utils import db
 from utils import graph_to_pytorch as gtp
-from torch_geometric.nn import GCNConv
+
+from sentence_transformers import SentenceTransformer
 
 load_dotenv(override=True)
 NEO4J_URI = os.getenv("NEO4J_URI")
@@ -34,6 +37,22 @@ class DBManager:
             db_connection (neo4j.GraphDatabase.driver): The connection object to interact with the Neo4j database.
         """
         self.db_connection = db.connect()
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.graph = None
+        self.tokenizer = None
+        self.model = None
+
+    def _load_tokenizer(self, model_name: str):
+        if not self.graph:
+            self.graph = Graph(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
+
+        # Load the model and tokenizer
+        if self.tokenizer is not None:
+            del self.tokenizer
+        if self.model is not None:
+            del self.model
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.model = AutoModel.from_pretrained(model_name).to(self.device)
 
     def project_graph(
         self,
@@ -148,90 +167,17 @@ class DBManager:
             result = session.run(query)  # type: ignore
             return [record.data() for record in result]
 
-    def generate_torch_embeddings(self, save_path: str):
-        """
-        Generates embeddings for all nodes in the graph using PyTorch Geometric
-        and saves them to the specified file.
+    def _generate_text_embedding(self, text: str):
 
-        Args:
-            save_path (str): Path to the file where embeddings will be saved.
-        """
-        # 1. Fetch data from Neo4j and process it
-        query = """
-            MATCH (n)-[r]->(m)
-            RETURN n AS source_node, m AS target_node, properties(n) AS node_props
-        """
-        data = self.fetch_data(query)
+        inputs = self.tokenizer(
+            text, return_tensors="pt", padding=True, truncation=True
+        )
+        inputs = {key: val.to(self.device) for key, val in inputs.items()}
+        with torch.no_grad():
+            outputs = self.model(**inputs)
+            embedding = outputs.last_hidden_state.mean(dim=1)
+        return embedding.cpu().numpy().tolist()
 
-        # Create mappings for nodes
-        node_to_idx = {}
-        edge_index = []
-        node_features = []
-
-        for record in data:
-            source, target = record["source_node"], record["target_node"]
-
-            # Assign unique index to source node
-            if source not in node_to_idx:
-                node_to_idx[source] = len(node_to_idx)
-                node_props = record["node_props"]
-                node_features.append([float(v) for v in node_props.values() if isinstance(v, (int, float))])
-
-            # Assign unique index to target node
-            if target not in node_to_idx:
-                node_to_idx[target] = len(node_to_idx)
-                target_props = record.get("node_props", {})
-                node_features.append([float(v) for v in target_props.values() if isinstance(v, (int, float))])
-
-            # Add edge
-            edge_index.append([node_to_idx[source], node_to_idx[target]])
-
-        # Convert edge index and node features to tensors
-        edge_index = torch.tensor(edge_index, dtype=torch.long).t().contiguous()
-        node_features = torch.tensor(node_features, dtype=torch.float)
-
-        # Create PyTorch Geometric data object
-        from torch_geometric.data import Data
-        graph_data = Data(x=node_features, edge_index=edge_index)
-
-        # 2. Define GCN model for embedding generation
-        class GCN(torch.nn.Module):
-            def __init__(self, input_dim, hidden_dim, output_dim):
-                super(GCN, self).__init__()
-                self.conv1 = GCNConv(input_dim, hidden_dim)
-                self.conv2 = GCNConv(hidden_dim, output_dim)
-
-            def forward(self, data):
-                x, edge_index = data.x, data.edge_index
-                x = self.conv1(x, edge_index)
-                x = torch.relu(x)
-                x = self.conv2(x, edge_index)
-                return x
-
-        # Use GPU if available
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        graph_data = graph_data.to(device)
-
-        # Initialize model
-        input_dim = graph_data.x.size(1)
-        hidden_dim = 64
-        output_dim = 128  # Embedding size
-        model = GCN(input_dim, hidden_dim, output_dim).to(device)
-
-        # 3. Train the model
-        optimizer = torch.optim.Adam(model.parameters(), lr=0.01, weight_decay=5e-4)
-        model.train()
-        for epoch in range(200):  # Adjust epochs as needed
-            optimizer.zero_grad()
-            embeddings = model(graph_data)
-            loss = torch.nn.functional.mse_loss(embeddings, graph_data.x)  # Example loss
-            loss.backward()
-            optimizer.step()
-            print(f"Epoch {epoch+1}, Loss: {loss.item()}")
-
-        # 4. Save embeddings
-        embeddings = embeddings.cpu().detach().numpy()
-        node_ids = {v: k for k, v in node_to_idx.items()}  # Reverse mapping
-        embeddings_df = pd.DataFrame(embeddings, index=[node_ids[i] for i in range(len(node_to_idx))])
-        embeddings_df.to_csv(save_path, index=True)
-        print(f"Embeddings saved to {save_path}")
+    def generate_embeddings_for(self, node_label: str, node_property:str, model_name: str):
+        self._load_tokenizer(model_name)
+        return self._generate_text_embedding("Había una vez un barco chiquito")

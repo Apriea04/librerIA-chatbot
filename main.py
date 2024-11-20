@@ -10,7 +10,7 @@ dbManager = DBManager()
 #dbManager.project_graph("full_db_projection")
 #dbManager.drop_projection("full_db_projection")
 
-dbManager.generate_torch_embeddings("torch_embeddings.csv")
+print(dbManager.generate_embeddings_for("full_db_projection", ",", "sentence-transformers/all-MiniLM-L6-v2"))
 
 end_time = time.time()
 elapsed_time = end_time - start_time
