@@ -10,7 +10,11 @@ dbManager = DBManager()
 #dbManager.project_graph("full_db_projection")
 #dbManager.drop_projection("full_db_projection")
 
-dbManager.generate_embeddings_for("Review", "summary", "", "sentence-transformers/all-MiniLM-L6-v2")
+# Ya generados:
+#dbManager.generate_embeddings_for("Book", "title", "title", "dunzhang/stella_en_1.5B_v5")
+#dbManager.generate_embeddings_for("Book", "description", "title", "dunzhang/stella_en_1.5B_v5")
+dbManager.generate_embeddings_for("Review", "summary", "", "dunzhang/stella_en_1.5B_v5")
+dbManager.generate_embeddings_for("Review", "text", "", "dunzhang/stella_en_1.5B_v5")
 
 end_time = time.time()
 elapsed_time = end_time - start_time

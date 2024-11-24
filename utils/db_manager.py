@@ -14,6 +14,7 @@ load_dotenv(override=True)
 NEO4J_URI = os.getenv("NEO4J_URI")
 NEO4J_USER = os.getenv("NEO4J_USERNAME")
 NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD")
+BATCH_SIZE = int(os.getenv("BATCH_SIZE", "100"))
 
 
 class DBManager:
@@ -171,10 +172,10 @@ class DBManager:
     def _generate_text_embedding(self, texts: list):
         inputs = self.tokenizer(
             texts, return_tensors="pt", padding=True, truncation=True
-        )
+        ) # type: ignore
         inputs = {key: val.to(self.device) for key, val in inputs.items()}
         with torch.no_grad():
-            outputs = self.model(**inputs)
+            outputs = self.model(**inputs) # type: ignore
             embeddings = outputs.last_hidden_state.mean(dim=1)
         return embeddings.cpu().numpy().tolist()
 
@@ -191,21 +192,18 @@ class DBManager:
         texts = [row["text"] for row in data]
         node_ids = [row["nodeId"] for row in data]
         
-        batch_size = 600
+        batch_size = 1
         for i in tqdm(range(0, len(texts), batch_size), desc="Generating embeddings"):
             batch_texts = texts[i:i + batch_size]
             batch_node_ids = node_ids[i:i + batch_size]
             batch_embeddings = self._generate_text_embedding(batch_texts)
             embeddings.extend(zip(batch_node_ids, batch_embeddings))
         
-        embeddings_df = pd.DataFrame(embeddings, columns=[node_id_property if node_id_property else "elementId", "embedding"])
-        
-        batch_size = 10000
         # Obtener la dimensión del vector del primer embedding
         vector_dimension = len(embeddings[0][1])  # Cambiado para obtener la dimensión directamente de la lista
         
-        for i in tqdm(range(0, len(embeddings), batch_size), desc="Writing embeddings to database"):
-            batch = embeddings[i:i + batch_size]
+        for i in tqdm(range(0, len(embeddings), BATCH_SIZE), desc="Writing to db"): # type: ignore
+            batch = embeddings[i:i + BATCH_SIZE]
             if node_id_property:
                 query = f"""
                 UNWIND $batch AS row
@@ -219,15 +217,15 @@ class DBManager:
                 SET n.{node_property}_embedding = row.embedding
                 """
             with self.db_connection.session() as session:
-                session.run(query, batch=[{"nodeId": node_id, "embedding": embedding} for node_id, embedding in batch])
+                session.run(query, batch=[{"nodeId": node_id, "embedding": embedding} for node_id, embedding in batch]) # type: ignore
 
         # Actualizado para usar la dimensión obtenida directamente
         self.create_vector_index(node_label, f"{node_property}_embedding", vector_dimension)
 
     def create_vector_index(self, node_label: str, vector_property: str, vector_dimensions: int):
-        query = f"""CREATE VECTOR INDEX {vector_property}_index IF NOT EXISTS FOR (n:{node_label}) ON (n.{vector_property}) OPTIONS {{ indexConfig: {{
+        query = f"""CREATE VECTOR INDEX {node_label}_{vector_property}_index IF NOT EXISTS FOR (n:{node_label}) ON (n.{vector_property}) OPTIONS {{ indexConfig: {{
             `vector.dimensions`: {vector_dimensions},
             `vector.similarity_function`: 'cosine'
             }}}}"""
         with self.db_connection.session() as session:
-            session.run(query)
+            session.run(query) # type: ignore
