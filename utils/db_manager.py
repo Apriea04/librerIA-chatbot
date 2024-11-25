@@ -1,13 +1,10 @@
 import os
+import pickle
 from dotenv import load_dotenv
-import pandas as pd
 from py2neo import Graph
 from transformers import AutoModel, AutoTokenizer
 import torch
 from utils import db
-from utils import graph_to_pytorch as gtp
-
-from sentence_transformers import SentenceTransformer
 from tqdm import tqdm
 
 load_dotenv(override=True)
@@ -192,35 +189,47 @@ class DBManager:
         texts = [row["text"] for row in data]
         node_ids = [row["nodeId"] for row in data]
         
-        batch_size = 1
-        for i in tqdm(range(0, len(texts), batch_size), desc="Generating embeddings"):
-            batch_texts = texts[i:i + batch_size]
-            batch_node_ids = node_ids[i:i + batch_size]
-            batch_embeddings = self._generate_text_embedding(batch_texts)
-            embeddings.extend(zip(batch_node_ids, batch_embeddings))
-        
-        # Obtener la dimensión del vector del primer embedding
-        vector_dimension = len(embeddings[0][1])  # Cambiado para obtener la dimensión directamente de la lista
-        
-        for i in tqdm(range(0, len(embeddings), BATCH_SIZE), desc="Writing to db"): # type: ignore
-            batch = embeddings[i:i + BATCH_SIZE]
-            if node_id_property:
-                query = f"""
-                UNWIND $batch AS row
-                MATCH (n:{node_label} {{{node_id_property}: row.nodeId}})
-                SET n.{node_property}_embedding = row.embedding
-                """
-            else:
-                query = f"""
-                UNWIND $batch AS row
-                MATCH (n:{node_label}) WHERE elementId(n) = row.nodeId
-                SET n.{node_property}_embedding = row.embedding
-                """
-            with self.db_connection.session() as session:
-                session.run(query, batch=[{"nodeId": node_id, "embedding": embedding} for node_id, embedding in batch]) # type: ignore
+        batch_size = 32
+        with tqdm(total=len(texts), desc="Generating embeddings") as pbar:
+            for i in range(0, len(texts), batch_size):
+                batch_texts = texts[i:i + batch_size]
+                batch_node_ids = node_ids[i:i + batch_size]
+                batch_embeddings = self._generate_text_embedding(batch_texts)
+                embeddings.extend(zip(batch_node_ids, batch_embeddings))
+                pbar.update(len(batch_texts))
+                
+                # Save to database every 1000 embeddings
+                if len(embeddings) >= BATCH_SIZE:
+                    self._save_embeddings_to_db(embeddings, node_label, node_property, node_id_property)
+                    embeddings = []
 
-        # Actualizado para usar la dimensión obtenida directamente
+        # Save any remaining embeddings
+        if embeddings:
+            self._save_embeddings_to_db(embeddings, node_label, node_property, node_id_property)
+
+        # Get the vector dimension from the first embedding
+        vector_dimension = len(embeddings[0][1]) if embeddings else 0
         self.create_vector_index(node_label, f"{node_property}_embedding", vector_dimension)
+
+    def _save_embeddings_to_db(self, embeddings, node_label, node_property, node_id_property):
+        with tqdm(total=len(embeddings), desc="Writing to db") as pbar:
+            for i in range(0, len(embeddings), BATCH_SIZE):
+                batch = embeddings[i:i + BATCH_SIZE]
+                if node_id_property:
+                    query = f"""
+                    UNWIND $batch AS row
+                    MATCH (n:{node_label} {{{node_id_property}: row.nodeId}})
+                    SET n.{node_property}_embedding = row.embedding
+                    """
+                else:
+                    query = f"""
+                    UNWIND $batch AS row
+                    MATCH (n:{node_label}) WHERE elementId(n) = row.nodeId
+                    SET n.{node_property}_embedding = row.embedding
+                    """
+                with self.db_connection.session() as session:
+                    session.run(query, batch=[{"nodeId": node_id, "embedding": embedding} for node_id, embedding in batch]) # type: ignore
+                pbar.update(len(batch))
 
     def create_vector_index(self, node_label: str, vector_property: str, vector_dimensions: int):
         query = f"""CREATE VECTOR INDEX {node_label}_{vector_property}_index IF NOT EXISTS FOR (n:{node_label}) ON (n.{vector_property}) OPTIONS {{ indexConfig: {{
@@ -229,3 +238,17 @@ class DBManager:
             }}}}"""
         with self.db_connection.session() as session:
             session.run(query) # type: ignore
+
+    def export_property_to_pickle(self, node_label: str, node_property: str, node_id_property: str):
+        if node_id_property:
+            query = f"MATCH (n:{node_label}) WHERE n.{node_property} IS NOT NULL RETURN n.{node_id_property} as nodeId, n.{node_property} as text"
+        else:
+            query = f"MATCH (n:{node_label}) WHERE n.{node_property} IS NOT NULL RETURN elementId(n) as nodeId, n.{node_property} as text"
+        data = self.fetch_data(query)
+        
+        # Exportar los textos y IDs a un archivo pickle
+        output_file = f"{node_label}_{node_property}_texts.pkl"
+        with open(output_file, mode='wb') as file:
+            pickle.dump(data, file)
+        
+        print(f"Exported {len(data)} records to {output_file}")
