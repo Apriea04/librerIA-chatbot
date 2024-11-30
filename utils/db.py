@@ -1,17 +1,15 @@
 from neo4j import GraphDatabase, Driver
-import os
-from dotenv import load_dotenv
+from utils.env_loader import EnvLoader
 
+env_loader = EnvLoader()
 
 def connect() -> Driver:
     """
     Connect to the Neo4j database for the project
     """
-    load_dotenv(override=True)
-
-    uri = os.getenv("NEO4J_URI")
-    user = os.getenv("NEO4J_USERNAME")
-    password = os.getenv("NEO4J_PASSWORD")
+    uri = env_loader.neo4j_uri
+    user = env_loader.neo4j_user
+    password = env_loader.neo4j_password
 
     return GraphDatabase.driver(uri=uri, auth=(user, password))  # type: ignore
 

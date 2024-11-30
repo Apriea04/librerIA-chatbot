@@ -3,13 +3,12 @@ Reduce el tamaño del dataset
 '''
 
 import pandas as pd
-import os
 import sys
-import dotenv
+from utils.env_loader import EnvLoader
 
-dotenv.load_dotenv()
-books_path = os.getenv('ALL_BOOKS_PATH')
-ratings_path = os.getenv('ALL_RATINGS_PATH')
+env_loader = EnvLoader()
+books_path = env_loader.books_path
+ratings_path = env_loader.ratings_path
 
 def read_books():
     return pd.read_csv(books_path)

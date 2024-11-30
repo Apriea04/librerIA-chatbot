@@ -1,9 +1,5 @@
-import os
-import pickle
-from py2neo import Graph
 from transformers import AutoModel, AutoTokenizer
 import torch
-from tqdm import tqdm
 
 class EmbeddingManager:
     def __init__(self):

@@ -1,18 +1,18 @@
 import os
 import pickle
-from dotenv import load_dotenv
 from py2neo import Graph
 from transformers import AutoModel, AutoTokenizer
 import torch
 from utils import db
 from tqdm import tqdm
 from models.embedding_manager import EmbeddingManager
+from utils.env_loader import EnvLoader
 
-load_dotenv(override=True)
-NEO4J_URI = os.getenv("NEO4J_URI")
-NEO4J_USER = os.getenv("NEO4J_USERNAME")
-NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD")
-BATCH_SIZE = int(os.getenv("BATCH_SIZE", "100"))
+env_loader = EnvLoader()
+NEO4J_URI = env_loader.neo4j_uri
+NEO4J_USER = env_loader.neo4j_user
+NEO4J_PASSWORD = env_loader.neo4j_password
+BATCH_SIZE = env_loader.batch_size
 
 
 def connect_to_graph():
