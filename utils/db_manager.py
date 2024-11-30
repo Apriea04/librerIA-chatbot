@@ -176,7 +176,7 @@ class DBManager:
             embeddings = outputs.last_hidden_state.mean(dim=1)
         return embeddings.cpu().numpy().tolist()
 
-    def generate_embeddings_for(self, node_label: str, node_property: str, node_id_property: str, model_name: str):
+    def generate_embeddings_for(self, node_label: str, node_property: str, node_id_property: str, model_name: str, batch_size: int=32):
         self._load_tokenizer(model_name)
         
         if node_id_property:
@@ -189,7 +189,6 @@ class DBManager:
         texts = [row["text"] for row in data]
         node_ids = [row["nodeId"] for row in data]
         
-        batch_size = 32
         with tqdm(total=len(texts), desc="Generating embeddings") as pbar:
             for i in range(0, len(texts), batch_size):
                 batch_texts = texts[i:i + batch_size]
@@ -198,8 +197,8 @@ class DBManager:
                 embeddings.extend(zip(batch_node_ids, batch_embeddings))
                 pbar.update(len(batch_texts))
                 
-                # Save to database every 1000 embeddings
-                if len(embeddings) >= BATCH_SIZE:
+                # Save to database every BATCH_SIZE embeddings
+                if len(embeddings) >= BATCH_SIZE * 100:
                     self._save_embeddings_to_db(embeddings, node_label, node_property, node_id_property)
                     embeddings = []
 
