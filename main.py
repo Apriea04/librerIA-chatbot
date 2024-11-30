@@ -7,7 +7,7 @@ start_time = time.time()
 dbManager = DBManager()
 
 # Generate embeddings for the dataset:
-#dbManager.generate_embeddings_for("Book", "title", "title", "sentence-transformers/all-MiniLM-L6-v2", 32)
+dbManager.generate_embeddings_for("Book", "title", "title", "sentence-transformers/all-MiniLM-L6-v2", 32)
 #dbManager.generate_embeddings_for("Book", "description", "title", "sentence-transformers/all-MiniLM-L6-v2", 32)
 #dbManager.generate_embeddings_for("Review", "summary", "", "sentence-transformers/all-MiniLM-L6-v2", 32)
 #dbManager.generate_embeddings_for("Review", "text", "", "sentence-transformers/all-MiniLM-L6-v2", 1)
