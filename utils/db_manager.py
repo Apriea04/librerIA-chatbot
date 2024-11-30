@@ -15,6 +15,10 @@ NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD")
 BATCH_SIZE = int(os.getenv("BATCH_SIZE", "100"))
 
 
+def connect_to_graph():
+    return Graph(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
+
+
 class DBManager:
     """
     dbManager is a class that manages graph projections and algorithms in a Neo4j database using the Graph Data Science (GDS) library.
@@ -45,7 +49,7 @@ class DBManager:
 
     def _load_tokenizer(self, model_name: str):
         if not self.graph:
-            self.graph = Graph(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
+            self.graph = connect_to_graph()
 
         # Load the model and tokenizer
         if self.tokenizer is not None:

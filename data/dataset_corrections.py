@@ -39,12 +39,11 @@ def procesar_csv(input_file, output_file):
          open(output_file, 'w', encoding='utf-8') as outfile:
         
         for linea in infile:
-            # Quitamos el salto de línea y procesamos la línea
             linea_procesada = procesar_linea(linea.strip())
-            # Escribimos la línea procesada en el archivo de salida
             outfile.write(linea_procesada + '\n')
 
 # Llamada al script
-input_file = 'books_rating.csv'  # Cambia esto al nombre de tu archivo de entrada
-output_file = 'books_rating_processed.csv'  # El archivo de salida procesado
-procesar_csv(input_file, output_file)
+if __name__ == "__main__":
+    input_file = 'books_rating.csv'  # Cambia esto al nombre de tu archivo de entrada
+    output_file = 'books_rating_processed.csv'  # El archivo de salida procesado
+    procesar_csv(input_file, output_file)
