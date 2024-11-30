@@ -6,15 +6,11 @@ start_time = time.time()
 # Se debe cargar el dataset manualmente.
 dbManager = DBManager()
 
-# No se ejecuta node2vec_write dado que requiere aproximadamente 107 GB de memoria.
-#dbManager.project_graph("full_db_projection")
-#dbManager.drop_projection("full_db_projection")
-
-# Ya generados:
-#dbManager.generate_embeddings_for("Book", "title", "title", "dunzhang/stella_en_1.5B_v5")
-#dbManager.generate_embeddings_for("Book", "description", "title", "dunzhang/stella_en_1.5B_v5")
-dbManager.generate_embeddings_for("Review", "summary", "", "dunzhang/stella_en_1.5B_v5")
-dbManager.generate_embeddings_for("Review", "text", "", "dunzhang/stella_en_1.5B_v5")
+# Generate embeddings for the dataset:
+#dbManager.generate_embeddings_for("Book", "title", "title", "sentence-transformers/all-MiniLM-L6-v2", 32)
+#dbManager.generate_embeddings_for("Book", "description", "title", "sentence-transformers/all-MiniLM-L6-v2", 32)
+#dbManager.generate_embeddings_for("Review", "summary", "", "sentence-transformers/all-MiniLM-L6-v2", 32)
+#dbManager.generate_embeddings_for("Review", "text", "", "sentence-transformers/all-MiniLM-L6-v2", 1)
 
 end_time = time.time()
 elapsed_time = end_time - start_time
