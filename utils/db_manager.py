@@ -1,17 +1,22 @@
 import os
 import pickle
-from dotenv import load_dotenv
 from py2neo import Graph
 from transformers import AutoModel, AutoTokenizer
 import torch
 from utils import db
 from tqdm import tqdm
+from models.embedding_manager import EmbeddingManager
+from utils.env_loader import EnvLoader
 
-load_dotenv(override=True)
-NEO4J_URI = os.getenv("NEO4J_URI")
-NEO4J_USER = os.getenv("NEO4J_USERNAME")
-NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD")
-BATCH_SIZE = int(os.getenv("BATCH_SIZE", "100"))
+env_loader = EnvLoader()
+NEO4J_URI = env_loader.neo4j_uri
+NEO4J_USER = env_loader.neo4j_user
+NEO4J_PASSWORD = env_loader.neo4j_password
+BATCH_SIZE = env_loader.batch_size
+
+
+def connect_to_graph():
+    return Graph(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
 
 
 class DBManager:
@@ -40,10 +45,11 @@ class DBManager:
         self.graph = None
         self.tokenizer = None
         self.model = None
+        self.embedding_manager = EmbeddingManager()
 
     def _load_tokenizer(self, model_name: str):
         if not self.graph:
-            self.graph = Graph(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
+            self.graph = connect_to_graph()
 
         # Load the model and tokenizer
         if self.tokenizer is not None:
@@ -166,18 +172,8 @@ class DBManager:
             result = session.run(query)  # type: ignore
             return [record.data() for record in result]
 
-    def _generate_text_embedding(self, texts: list):
-        inputs = self.tokenizer(
-            texts, return_tensors="pt", padding=True, truncation=True
-        ) # type: ignore
-        inputs = {key: val.to(self.device) for key, val in inputs.items()}
-        with torch.no_grad():
-            outputs = self.model(**inputs) # type: ignore
-            embeddings = outputs.last_hidden_state.mean(dim=1)
-        return embeddings.cpu().numpy().tolist()
-
     def generate_embeddings_for(self, node_label: str, node_property: str, node_id_property: str, model_name: str, batch_size: int=32):
-        self._load_tokenizer(model_name)
+        self.embedding_manager.load_tokenizer(model_name)
         
         if node_id_property:
             query = f"MATCH (n:{node_label}) WHERE n.{node_property} IS NOT NULL RETURN n.{node_id_property} as nodeId, n.{node_property} as text"
@@ -193,20 +189,17 @@ class DBManager:
             for i in range(0, len(texts), batch_size):
                 batch_texts = texts[i:i + batch_size]
                 batch_node_ids = node_ids[i:i + batch_size]
-                batch_embeddings = self._generate_text_embedding(batch_texts)
+                batch_embeddings = self.embedding_manager.generate_text_embedding(batch_texts)
                 embeddings.extend(zip(batch_node_ids, batch_embeddings))
                 pbar.update(len(batch_texts))
                 
-                # Save to database every BATCH_SIZE embeddings
                 if len(embeddings) >= BATCH_SIZE * 100:
                     self._save_embeddings_to_db(embeddings, node_label, node_property, node_id_property)
                     embeddings = []
 
-        # Save any remaining embeddings
         if embeddings:
             self._save_embeddings_to_db(embeddings, node_label, node_property, node_id_property)
 
-        # Get the vector dimension from the first embedding
         vector_dimension = len(embeddings[0][1]) if embeddings else 0
         self.create_vector_index(node_label, f"{node_property}_embedding", vector_dimension)
 
@@ -230,14 +223,6 @@ class DBManager:
                     session.run(query, batch=[{"nodeId": node_id, "embedding": embedding} for node_id, embedding in batch]) # type: ignore
                 pbar.update(len(batch))
 
-    def create_vector_index(self, node_label: str, vector_property: str, vector_dimensions: int):
-        query = f"""CREATE VECTOR INDEX {node_label}_{vector_property}_index IF NOT EXISTS FOR (n:{node_label}) ON (n.{vector_property}) OPTIONS {{ indexConfig: {{
-            `vector.dimensions`: {vector_dimensions},
-            `vector.similarity_function`: 'cosine'
-            }}}}"""
-        with self.db_connection.session() as session:
-            session.run(query) # type: ignore
-
     def export_property_to_pickle(self, node_label: str, node_property: str, node_id_property: str):
         if node_id_property:
             query = f"MATCH (n:{node_label}) WHERE n.{node_property} IS NOT NULL RETURN n.{node_id_property} as nodeId, n.{node_property} as text"
@@ -245,9 +230,16 @@ class DBManager:
             query = f"MATCH (n:{node_label}) WHERE n.{node_property} IS NOT NULL RETURN elementId(n) as nodeId, n.{node_property} as text"
         data = self.fetch_data(query)
         
-        # Exportar los textos y IDs a un archivo pickle
         output_file = f"{node_label}_{node_property}_texts.pkl"
         with open(output_file, mode='wb') as file:
             pickle.dump(data, file)
         
         print(f"Exported {len(data)} records to {output_file}")
+
+    def create_vector_index(self, node_label: str, vector_property: str, vector_dimensions: int):
+        query = f"""CREATE VECTOR INDEX {node_label}_{vector_property}_index IF NOT EXISTS FOR (n:{node_label}) ON (n.{vector_property}) OPTIONS {{ indexConfig: {{
+            `vector.dimensions`: {vector_dimensions},
+            `vector.similarity_function`: 'cosine'
+            }}}}"""
+        with self.db_connection.session() as session:
+            session.run(query) # type: ignore

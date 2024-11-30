@@ -3,13 +3,24 @@ Reduce el tamaño del dataset
 '''
 
 import pandas as pd
-import os
 import sys
-import dotenv
+from utils.env_loader import EnvLoader
 
-dotenv.load_dotenv()
-books_path = os.getenv('ALL_BOOKS_PATH')
-ratings_path = os.getenv('ALL_RATINGS_PATH')
+env_loader = EnvLoader()
+books_path = env_loader.books_path
+ratings_path = env_loader.ratings_path
+
+def read_books():
+    return pd.read_csv(books_path)
+
+def write_books(books_df):
+    books_df.to_csv(books_path.replace('.csv', '_reduced.csv'), index=False)
+
+def read_ratings():
+    return pd.read_csv(ratings_path)
+
+def write_ratings(ratings_df):
+    ratings_df.to_csv(ratings_path.replace('.csv', '_reduced.csv'), index=False)
 
 def reduce_dataset(books: int):
     '''
@@ -18,15 +29,15 @@ def reduce_dataset(books: int):
     '''
     
     # Get first books
-    books_df = pd.read_csv(books_path)
+    books_df = read_books()
     books_df = books_df.sample(n=books, random_state=1)
-    books_df.to_csv(books_path.replace('.csv', '_reduced.csv'), index=False)
+    write_books(books_df)
     print("Libros seleccionados y CSV creado.")
     
     # Get ratings for those books
-    ratings_df = pd.read_csv(ratings_path)
+    ratings_df = read_ratings()
     ratings_df = ratings_df[ratings_df['Title'].isin(books_df['Title'])]
-    ratings_df.to_csv(ratings_path.replace('.csv', '_reduced.csv'), index=False)
+    write_ratings(ratings_df)
     print("Reseñas seleccionadas y CSV creado.")
     print(f'Dataset reduced to {books} books')
     
