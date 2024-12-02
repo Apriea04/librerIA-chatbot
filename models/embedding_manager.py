@@ -2,11 +2,20 @@ from transformers import AutoModel, AutoTokenizer
 import torch
 
 class EmbeddingManager:
+    _instance = None
+
+    def __new__(cls, *args, **kwargs):
+        if not cls._instance:
+            cls._instance = super(EmbeddingManager, cls).__new__(cls, *args, **kwargs)
+        return cls._instance
+
     def __init__(self):
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.graph = None
-        self.tokenizer = None
-        self.model = None
+        if not hasattr(self, 'initialized'):
+            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            self.graph = None
+            self.tokenizer = None
+            self.model = None
+            self.initialized = True
 
     def load_tokenizer(self, model_name: str):
         if self.tokenizer is not None:
