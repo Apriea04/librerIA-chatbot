@@ -10,13 +10,13 @@ env = EnvLoader()
 dbManager = DBManager()
 
 # Generate embeddings for the dataset:
-#dbManager.generate_embeddings_for("Book", "title", "title", env.embeddings_model, 32)
+dbManager.generate_embeddings_for("Book", "title", "title", env.embeddings_model, 32)
 #dbManager.generate_embeddings_for("Book", "description", "title", env.embeddings_model, 32)
 #dbManager.generate_embeddings_for("Review", "summary", "", env.embeddings_model, 32)
 #dbManager.generate_embeddings_for("Review", "text", "", env.embeddings_model, 1)
 
 ragAgent = RAGAgent()
-results = ragAgent.recommend_similar_books_by_title("The Church of Christ: A Biblical Ecclesiology for Today", 10)
+results = ragAgent.recommend_similar_books_by_title("Santa Biblia", 10)
 for idx, result in enumerate(results, start=1):
     print(f"{idx}. {result[0]} (Score: {result[1]:.8f})")
 

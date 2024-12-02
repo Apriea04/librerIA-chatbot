@@ -43,21 +43,8 @@ class DBManager:
         self.db_connection = db.connect()
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.graph = None
-        self.tokenizer = None
         self.model = None
         self.embedding_manager = EmbeddingManager()
-
-    def _load_tokenizer(self, model_name: str):
-        if not self.graph:
-            self.graph = connect_to_graph()
-
-        # Load the model and tokenizer
-        if self.tokenizer is not None:
-            del self.tokenizer
-        if self.model is not None:
-            del self.model
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.model = AutoModel.from_pretrained(model_name).to(self.device)
 
     def project_graph(
         self,
@@ -173,8 +160,6 @@ class DBManager:
             return [record.data() for record in result]
 
     def generate_embeddings_for(self, node_label: str, node_property: str, node_id_property: str, model_name: str, batch_size: int=32):
-        self.embedding_manager.load_tokenizer(model_name)
-        
         if node_id_property:
             query = f"MATCH (n:{node_label}) WHERE n.{node_property} IS NOT NULL RETURN n.{node_id_property} as nodeId, n.{node_property} as text"
         else:
