@@ -148,3 +148,5 @@ class RAGAgent:
                 )
 
             return [(record["title"], record["similarity"]) for record in similar_books]
+
+    # TODO: author and taking into account reviews.
