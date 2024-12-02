@@ -36,12 +36,12 @@ class RAGAgent:
             # Consulta para encontrar los libros más similares
             similar_books_query = f"""
             MATCH (b:Book)
-            WHERE b.{embedding_property} IS NOT NULL
+            WHERE b.{embedding_property} IS NOT NULL AND b.title <> $title
             WITH b, gds.similarity.cosine(b.{embedding_property}, $embedding) AS similarity
             RETURN b.title AS title, similarity
             ORDER BY similarity DESC
             LIMIT $top_k
             """
-            similar_books = session.run(similar_books_query, {"embedding": book_embedding, "top_k": top_k}) # type: ignore
+            similar_books = session.run(similar_books_query, {"embedding": book_embedding, "top_k": top_k, "title": book_title}) # type: ignore
 
             return [(record['title'], record['similarity']) for record in similar_books]
