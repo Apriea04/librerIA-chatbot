@@ -10,6 +10,7 @@ class EnvLoader:
         self.neo4j_user = self.get_env_var("NEO4J_USERNAME")
         self.neo4j_password = self.get_env_var("NEO4J_PASSWORD")
         self.batch_size = int(self.get_env_var("BATCH_SIZE", "100"))
+        self.embeddings_model = self.get_env_var("EMBEDDINGS_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
 
     def load_env_vars(self):
         load_dotenv(override=True)
