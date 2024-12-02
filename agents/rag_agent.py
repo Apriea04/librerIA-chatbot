@@ -45,3 +45,35 @@ class RAGAgent:
             similar_books = session.run(similar_books_query, {"embedding": book_embedding, "top_k": top_k, "title": book_title}) # type: ignore
 
             return [(record['title'], record['similarity']) for record in similar_books]
+
+    def recommend_similar_books_by_description(self, book_description: str, top_k: int=5, embedding_property: str="description_embedding") -> list:
+        """
+        Recommends similar books based on the given description.
+        This method uses the Neo4j graph database to find books that have similar embeddings
+        to the specified description's embedding, which is generated using the EmbeddingManager.
+        Args:
+            book_description (str): The description of the book for which to find similar books.
+            top_k (int, optional): The number of similar books to return. Defaults to 5.
+            embedding_property (str, optional): The property name of the book node that contains
+                                                the embedding. Defaults to "description_embedding".
+        Returns:
+            list: A list of tuples, where each tuple contains the title of a similar book and
+                  the similarity score.
+        """
+    
+        descr_embedding = EmbeddingManager().generate_text_embedding([book_description])[0]
+        
+        with self.neo4j_conn.session() as session:
+            # Consulta para encontrar los libros más similares
+            similar_books_query = f"""
+            MATCH (b:Book)
+            WHERE b.{embedding_property} IS NOT NULL
+            WITH b, gds.similarity.cosine(b.{embedding_property}, $embedding) AS similarity
+            RETURN b.title AS title, similarity
+            ORDER BY similarity DESC
+            LIMIT $top_k
+            """
+            similar_books = session.run(similar_books_query, {"embedding": descr_embedding, "top_k": top_k}) # type: ignore
+            
+            return [(record['title'], record['similarity']) for record in similar_books]
+            
