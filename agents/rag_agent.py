@@ -44,8 +44,12 @@ class RAGAgent:
             # Consulta para encontrar los libros más similares
             similar_books_query = f"""
             MATCH (b:Book)
-            WHERE b.{embedding_property} IS NOT NULL AND b.title <> $title
-            WITH b, gds.similarity.cosine(b.{embedding_property}, $embedding) AS similarity
+            WITH b, 
+                 CASE 
+                     WHEN b.{embedding_property} IS NOT NULL THEN gds.similarity.cosine(b.{embedding_property}, $embedding)
+                     ELSE -1 
+                 END AS similarity
+            WHERE b.title <> $title
             RETURN b.title AS title, similarity
             ORDER BY similarity DESC
             LIMIT $top_k
@@ -82,8 +86,11 @@ class RAGAgent:
             # Consulta para encontrar los libros más similares
             similar_books_query = f"""
             MATCH (b:Book)
-            WHERE b.{embedding_property} IS NOT NULL
-            WITH b, gds.similarity.cosine(b.{embedding_property}, $embedding) AS similarity
+            WITH b, 
+                 CASE 
+                     WHEN b.{embedding_property} IS NOT NULL THEN gds.similarity.cosine(b.{embedding_property}, $embedding)
+                     ELSE -1 
+                 END AS similarity
             RETURN b.title AS title, similarity
             ORDER BY similarity DESC
             LIMIT $top_k
@@ -116,7 +123,7 @@ class RAGAgent:
         RETURN g.name AS genre, b.{description_embedding_property} AS embedding
         """
         with self.neo4j_conn.session() as session:
-            result = session.run(book_query, {"title": book_title}).single() # type: ignore
+            result = session.run(book_query, {"title": book_title}).single()  # type: ignore
 
             if result is None:
                 return []
@@ -127,8 +134,12 @@ class RAGAgent:
                 book_embedding = result["embedding"]
                 similar_books_query = f"""
                 MATCH (b:Book)-[:BELONGS_TO]->(g:Genre {{name: $genre}})
-                WHERE b.title <> $title AND b.{description_embedding_property} IS NOT NULL
-                WITH b, gds.similarity.cosine(b.{description_embedding_property}, $embedding) AS similarity
+                WITH b, 
+                     CASE 
+                         WHEN b.{description_embedding_property} IS NOT NULL THEN gds.similarity.cosine(b.{description_embedding_property}, $embedding)
+                         ELSE -1 
+                     END AS similarity
+                WHERE b.title <> $title
                 RETURN b.title AS title, similarity
                 ORDER BY similarity DESC
                 LIMIT $top_k
@@ -145,6 +156,67 @@ class RAGAgent:
                 similar_books = session.run(
                     similar_books_query,
                     {"top_k": top_k, "title": book_title, "genre": genre},
+                )
+
+            return [(record["title"], record["similarity"]) for record in similar_books]
+
+    def recommend_same_author_as(
+        self,
+        book_title: str,
+        top_k: int = 5,
+        description_embedding_property: str = "description_embedding",
+    ) -> list:
+        """
+        Recommends books of the same author as the specified book title.
+        If the book has a description embedding, it uses that to find similar books belonging to the same author.
+        Otherwise, it just finds books with the same author.
+        Args:
+            book_title (str): The title of the book for which to find similar author books.
+            top_k (int, optional): The number of similar author books to return. Defaults to 5.
+            description_embedding_property (str, optional): The property name of the book node that contains
+                                                            the description embedding. Defaults to "description_embedding".
+        Returns:
+            list: A list of tuples, where each tuple contains the title of a similar author book and
+                  the similarity score.
+        """
+        book_query = f"""
+        MATCH (b:Book {{title: $title}})-[:WRITTEN_BY]->(a:Author)
+        RETURN a.name AS author, b.{description_embedding_property} AS embedding
+        """
+        with self.neo4j_conn.session() as session:
+            result = session.run(book_query, {"title": book_title}).single()  # type: ignore
+
+            if result is None or result["author"] is None:
+                return []
+
+            author = result["author"]
+
+            if result["embedding"] is not None:
+                book_embedding = result["embedding"]
+                similar_books_query = f"""
+                MATCH (b:Book)-[:WRITTEN_BY]->(a:Author {{name: $author}})
+                WITH b, 
+                     CASE 
+                         WHEN b.{description_embedding_property} IS NOT NULL THEN gds.similarity.cosine(b.{description_embedding_property}, $embedding)
+                         ELSE -1 
+                     END AS similarity
+                WHERE b.title <> $title
+                RETURN b.title AS title, similarity
+                ORDER BY similarity DESC
+                LIMIT $top_k
+                """
+                similar_books = session.run(similar_books_query, {"embedding": book_embedding, "top_k": top_k, "title": book_title, "author": author})  # type: ignore
+
+            else:
+                similar_books_query = f"""
+                MATCH (b:Book)-[:WRITTEN_BY]->(a:Author {{name: $author}})
+                WHERE b.title <> $title
+                RETURN b.title AS title
+                LIMIT $top_k
+                """
+                similar_books = session.run(
+                    similar_books_query,
+                    {"top_k": top_k, "title": book_title, "author": author},
                 )
 
             return [(record["title"], record["similarity"]) for record in similar_books]

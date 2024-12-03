@@ -31,6 +31,12 @@ print('-'*106)
 results = ragAgent.recommend_same_genre_as("The Human Zoo", 12) # Expected Animal Behavior genre: 	How Animals Talk: And Other Pleasant Studies of Birds and Beasts, 	Never Cry Wolf,	Cry Wolf, 	Can I Be Good?, Call of the Dolphins, ...
 for idx, result in enumerate(results, start=1):
     print(f"{idx}. {result[0]} (Score: {result[1]:.8f})")
+    
+print('-'*106)
+    
+results = ragAgent.recommend_same_author_as("Fortinbras", 12) # Expected 'Lee Blessing''s books: A Walk in the Woods: a Play in Two Acts, Fortinbras
+for idx, result in enumerate(results, start=1):
+    print(f"{idx}. {result[0]} (Score: {result[1]:.8f})")
 
 end_time = time.time()
 elapsed_time = end_time - start_time
