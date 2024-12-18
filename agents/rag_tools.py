@@ -1,33 +1,29 @@
 from utils.db import connect
 from models.embedding_manager import EmbeddingManager
 
+neo4j_conn = connect()
 
-class RAGAgent:
-    def __init__(self):
-        self.neo4j_conn = connect()
-
-    def recommend_similar_books_by_title(
-        self,
-        book_title: str,
-        top_k: int = 5,
-        embedding_property: str = "title_embedding",
-    ) -> list:
-        """
-        Recommends similar books based on the title of a given book.
-        This method uses the Neo4j graph database to find books that have similar embeddings
-        to the specified book title. If the embedding for the specified book title is not found,
-        it generates a new embedding using the EmbeddingManager.
-        Args:
-            book_title (str): The title of the book for which to find similar books.
-            top_k (int, optional): The number of similar books to return. Defaults to 5.
-            embedding_property (str, optional): The property name of the book node that contains
-                                                the embedding. Defaults to "title_embedding".
-        Returns:
-            list: A list of tuples, where each tuple contains the title of a similar book and
-                  the similarity score.
-        """
-
-        with self.neo4j_conn.session() as session:
+def recommend_similar_books_by_title(
+    book_title: str,
+    top_k: int = 5,
+    embedding_property: str = "title_embedding",
+) -> list:
+    """
+    Recommends similar books based on the title of a given book.
+    This method uses the Neo4j graph database to find books that have similar embeddings
+    to the specified book title. If the embedding for the specified book title is not found,
+    it generates a new embedding using the EmbeddingManager.
+    Args:
+        book_title (str): The title of the book for which to find similar books.
+        top_k (int, optional): The number of similar books to return. Defaults to 5.
+        embedding_property (str, optional): The property name of the book node that contains
+                                            the embedding. Defaults to "title_embedding".
+    Returns:
+        list: A list of tuples, where each tuple contains the title of a similar book and
+              the similarity score.
+    """
+    try:
+        with neo4j_conn.session() as session:
             # Obtener el embedding del libro especificado
             query = f"""
             MATCH (b:Book {{title: $title}})
@@ -57,32 +53,33 @@ class RAGAgent:
             similar_books = session.run(similar_books_query, {"embedding": book_embedding, "top_k": top_k, "title": book_title})  # type: ignore
 
             return [(record["title"], record["similarity"]) for record in similar_books]
+    finally:
+        neo4j_conn.close()
 
-    def recommend_similar_books_by_description(
-        self,
-        book_description: str,
-        top_k: int = 5,
-        embedding_property: str = "description_embedding",
-    ) -> list:
-        """
-        Recommends similar books based on the given description.
-        This method uses the Neo4j graph database to find books that have similar embeddings
-        to the specified description's embedding, which is generated using the EmbeddingManager.
-        Args:
-            book_description (str): The description of the book for which to find similar books.
-            top_k (int, optional): The number of similar books to return. Defaults to 5.
-            embedding_property (str, optional): The property name of the book node that contains
-                                                the embedding. Defaults to "description_embedding".
-        Returns:
-            list: A list of tuples, where each tuple contains the title of a similar book and
-                  the similarity score.
-        """
-
+def recommend_similar_books_by_description(
+    book_description: str,
+    top_k: int = 5,
+    embedding_property: str = "description_embedding",
+) -> list:
+    """
+    Recommends similar books based on the given description.
+    This method uses the Neo4j graph database to find books that have similar embeddings
+    to the specified description's embedding, which is generated using the EmbeddingManager.
+    Args:
+        book_description (str): The description of the book for which to find similar books.
+        top_k (int, optional): The number of similar books to return. Defaults to 5.
+        embedding_property (str, optional): The property name of the book node that contains
+                                            the embedding. Defaults to "description_embedding".
+    Returns:
+        list: A list of tuples, where each tuple contains the title of a similar book and
+              the similarity score.
+    """
+    try:
         descr_embedding = EmbeddingManager().generate_text_embedding(
             [book_description]
         )[0]
 
-        with self.neo4j_conn.session() as session:
+        with neo4j_conn.session() as session:
             # Consulta para encontrar los libros más similares
             similar_books_query = f"""
             MATCH (b:Book)
@@ -98,31 +95,33 @@ class RAGAgent:
             similar_books = session.run(similar_books_query, {"embedding": descr_embedding, "top_k": top_k})  # type: ignore
 
             return [(record["title"], record["similarity"]) for record in similar_books]
+    finally:
+        neo4j_conn.close()
 
-    def recommend_same_genre_as(
-        self,
-        book_title: str,
-        top_k: int = 5,
-        description_embedding_property: str = "description_embedding",
-    ) -> list:
-        """
-        Recommends books of the same genre as the specified book title.
-        If the book has a description embedding, it uses that to find similar books belonging to the same genre.
-        Otherwise, it just finds books with the same genre.
-        Args:
-            book_title (str): The title of the book for which to find similar genre books.
-            top_k (int, optional): The number of similar genre books to return. Defaults to 5.
-            description_embedding_property (str, optional): The property name of the book node that contains
-                                                            the description embedding. Defaults to "description_embedding".
-        Returns:
-            list: A list of tuples, where each tuple contains the title of a similar genre book and
-                  the similarity score.
-        """
+def recommend_same_genre_as(
+    book_title: str,
+    top_k: int = 5,
+    description_embedding_property: str = "description_embedding",
+) -> list:
+    """
+    Recommends books of the same genre as the specified book title.
+    If the book has a description embedding, it uses that to find similar books belonging to the same genre.
+    Otherwise, it just finds books with the same genre.
+    Args:
+        book_title (str): The title of the book for which to find similar genre books.
+        top_k (int, optional): The number of similar genre books to return. Defaults to 5.
+        description_embedding_property (str, optional): The property name of the book node that contains
+                                                        the description embedding. Defaults to "description_embedding".
+    Returns:
+        list: A list of tuples, where each tuple contains the title of a similar genre book and
+              the similarity score.
+    """
+    try:
         book_query = f"""
         MATCH (b:Book {{title: $title}})-[:BELONGS_TO]->(g:Genre)
         RETURN g.name AS genre, b.{description_embedding_property} AS embedding
         """
-        with self.neo4j_conn.session() as session:
+        with neo4j_conn.session() as session:
             result = session.run(book_query, {"title": book_title}).single()  # type: ignore
 
             if result is None:
@@ -159,31 +158,33 @@ class RAGAgent:
                 )
 
             return [(record["title"], record["similarity"]) for record in similar_books]
+    finally:
+        neo4j_conn.close()
 
-    def recommend_same_author_as(
-        self,
-        book_title: str,
-        top_k: int = 5,
-        description_embedding_property: str = "description_embedding",
-    ) -> list:
-        """
-        Recommends books of the same author as the specified book title.
-        If the book has a description embedding, it uses that to find similar books belonging to the same author.
-        Otherwise, it just finds books with the same author.
-        Args:
-            book_title (str): The title of the book for which to find similar author books.
-            top_k (int, optional): The number of similar author books to return. Defaults to 5.
-            description_embedding_property (str, optional): The property name of the book node that contains
-                                                            the description embedding. Defaults to "description_embedding".
-        Returns:
-            list: A list of tuples, where each tuple contains the title of a similar author book and
-                  the similarity score.
-        """
+def recommend_same_author_as(
+    book_title: str,
+    top_k: int = 5,
+    description_embedding_property: str = "description_embedding",
+) -> list:
+    """
+    Recommends books of the same author as the specified book title.
+    If the book has a description embedding, it uses that to find similar books belonging to the same author.
+    Otherwise, it just finds books with the same author.
+    Args:
+        book_title (str): The title of the book for which to find similar author books.
+        top_k (int, optional): The number of similar author books to return. Defaults to 5.
+        description_embedding_property (str, optional): The property name of the book node that contains
+                                                        the description embedding. Defaults to "description_embedding".
+    Returns:
+        list: A list of tuples, where each tuple contains the title of a similar author book and
+              the similarity score.
+    """
+    try:
         book_query = f"""
         MATCH (b:Book {{title: $title}})-[:WRITTEN_BY]->(a:Author)
         RETURN a.name AS author, b.{description_embedding_property} AS embedding
         """
-        with self.neo4j_conn.session() as session:
+        with neo4j_conn.session() as session:
             result = session.run(book_query, {"title": book_title}).single()  # type: ignore
 
             if result is None or result["author"] is None:
@@ -220,5 +221,7 @@ class RAGAgent:
                 )
 
             return [(record["title"], record["similarity"]) for record in similar_books]
+    finally:
+        neo4j_conn.close()
 
-    # TODO: author and taking into account reviews.
+# TODO: author and taking into account reviews.
