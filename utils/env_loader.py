@@ -23,7 +23,7 @@ class EnvLoader:
             cls.neo4j_password = cls._instance.get_env_var("NEO4J_PASSWORD")
             cls.batch_size = int(cls._instance.get_env_var("BATCH_SIZE", "100"))
             cls.embeddings_model = cls._instance.get_env_var("EMBEDDINGS_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
-            cls.agent_llm_model = cls._instance.get_env_var("AGENT_LLM_MODEL", "llama3.2")
+            cls.agent_llm_model = cls._instance.get_env_var("AGENT_LLM_MODEL", "llama3.3")
         return cls._instance
 
     @staticmethod
