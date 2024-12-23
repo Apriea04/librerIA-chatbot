@@ -5,8 +5,7 @@ from langchain_core.tools import tool
 neo4j_conn = connect()
 
 
-@tool
-def recommend_similar_books_by_title(
+def recommendSimilarBooksByTitle(
     book_title: str,
     top_k: int = 5,
     embedding_property: str = "title_embedding",
@@ -60,8 +59,7 @@ def recommend_similar_books_by_title(
         neo4j_conn.close()
 
 
-@tool
-def recommend_similar_books_by_description(
+def recommendSimilarBooksByDescription(
     book_description: str,
     top_k: int = 5,
     embedding_property: str = "description_embedding",
@@ -104,8 +102,7 @@ def recommend_similar_books_by_description(
         neo4j_conn.close()
 
 
-@tool
-def recommend_same_genre_as(
+def recommendSameGenreAs(
     book_title: str,
     top_k: int = 5,
     description_embedding_property: str = "description_embedding",
@@ -169,8 +166,7 @@ def recommend_same_genre_as(
         neo4j_conn.close()
 
 
-@tool
-def recommend_same_author_as(
+def recommendSameAuthorAs(
     book_title: str,
     top_k: int = 5,
     description_embedding_property: str = "description_embedding",
@@ -230,6 +226,61 @@ def recommend_same_author_as(
                 )
 
             return [(record["title"], record["similarity"]) for record in similar_books]
+    finally:
+        neo4j_conn.close()
+
+
+
+def getBookDescription(book: str) -> str:
+    """
+    Get the description of the specified book.
+
+    Parameters:
+        book (str): The title of the book.
+
+    Returns:
+        str: The description of the book or a message if not found.
+    """
+    try:
+        with neo4j_conn.session() as session:
+            query = """
+            MATCH (b:Book {title: $book})
+            RETURN b.description AS description
+            """
+            result = session.run(query, {"book": book}).single()
+            if result is None:
+                return "Book not found"
+            return result["description"]
+    except Exception as e:
+        return f"An error occurred: {str(e)}"
+    finally:
+        neo4j_conn.close()
+
+
+
+def getBooksInfo(books: list[str]) -> dict[str, dict]:
+    """
+    Get the information of the specified books. This includes the author, genre, description,
+    published date, and image URL.
+    """
+    try:
+        with neo4j_conn.session() as session:
+            query = f"""
+            MATCH (a:Author)<-[:WRITTEN_BY]-(b:Book)-[:BELONGS_TO]->(g:Genre)
+            WHERE b.title IN $books
+            RETURN b.title AS title, b AS book, b.description as description a.name AS author, g.name AS genre, b.publishedDate AS published, b.image AS imageUrl
+            """
+            result = session.run(query, {"books": books})  # type: ignore
+            return {
+                record["title"]: {
+                    "author": record["author"],
+                    "genre": record["genre"],
+                    "description": record["description"],
+                    "published": record["book"]["published"],
+                    "imageUrl": record["imageUrl"],
+                }
+                for record in result
+            }
     finally:
         neo4j_conn.close()
 

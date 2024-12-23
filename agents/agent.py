@@ -1,19 +1,28 @@
+from typing import Optional
 from langchain_core.prompts import ChatPromptTemplate
 from collections import deque
 from langchain_ollama import OllamaLLM
 from langchain_core.tools import render_text_description
 from langchain.agents import AgentExecutor, create_react_agent
 from langchain.memory import ConversationBufferMemory
-
+from agents.tools import rag_tools
+from langchain_core.tools import tool
+import inspect
 
 # ============================================================
 # Define the agent
 # ============================================================
-class Agent:
-    def __init__(self, model_name: str, prompt_path: str, tools: list):
-        self.llm = OllamaLLM(model=model_name)
+class RagAgent:
+    def __init__(self, model_name: str, prompt_path: str, tools: Optional[list] = None):
+        self.llm = OllamaLLM(model=model_name, temperature=0)
         self.memory = ConversationBufferMemory(memory_key="chat_history")
-        self.tools = tools
+        if not tools:
+            self.tools = []
+            for name, func in inspect.getmembers(rag_tools, inspect.isfunction):
+                decorated = tool(func)
+                self.tools.append(decorated)
+        else:
+            self.tools = tools
         self.chat_history: deque[str] = deque(maxlen=10)  # Historial de mensajes
 
         # Cargar contenido del prompt
