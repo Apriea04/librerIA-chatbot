@@ -1,68 +1,44 @@
-from typing import Optional
-from langchain_core.prompts import ChatPromptTemplate
-from collections import deque
-from langchain_ollama import OllamaLLM
-from langchain_core.tools import render_text_description
-from langchain.agents import AgentExecutor, create_react_agent
-from langchain.memory import ConversationBufferMemory
 from agents.tools import rag_tools
-from langchain_core.tools import tool
+from llama_index.core.agent import ReActAgent
+from llama_index.llms.ollama import Ollama
+from typing import Optional
+from llama_index.core.llms import ChatMessage
+from llama_index.core.tools import BaseTool, FunctionTool
 import inspect
+
 
 # ============================================================
 # Define the agent
 # ============================================================
 class RagAgent:
-    def __init__(self, model_name: str, prompt_path: str, tools: Optional[list] = None):
-        self.llm = OllamaLLM(model=model_name, temperature=0)
-        self.memory = ConversationBufferMemory(memory_key="chat_history")
+    def __init__(
+        self,
+        model_name: str,
+        prompt_path: str,
+        tools: Optional[list[FunctionTool]] = None,
+    ):
+        self.llm = Ollama(model=model_name, temperature=0, request_timeout=5 * 60)
         if not tools:
-            self.tools = []
-            for name, func in inspect.getmembers(rag_tools, inspect.isfunction):
-                decorated = tool(func)
-                self.tools.append(decorated)
+            self.tools = [
+                FunctionTool.from_defaults(fn=rag_tools.recommendSimilarBooksByTitle),
+                FunctionTool.from_defaults(
+                    fn=rag_tools.recommendSimilarBooksByDescription
+                ),
+                FunctionTool.from_defaults(fn=rag_tools.recommendSameGenreAs),
+                FunctionTool.from_defaults(fn=rag_tools.recommendSameAuthorAs),
+                FunctionTool.from_defaults(fn=rag_tools.getBookDescription),
+                FunctionTool.from_defaults(fn=rag_tools.getBooksInfo),
+                FunctionTool.from_defaults(fn=rag_tools.getBookReviews),
+                FunctionTool.from_defaults(fn=rag_tools.recommendBooksByReviews),
+            ]
         else:
             self.tools = tools
-        self.chat_history: deque[str] = deque(maxlen=10)  # Historial de mensajes
-
-        # Cargar contenido del prompt
-        with open(prompt_path, "r") as file:
-            prompt_content = file.read()
-
-        # Crear plantilla inicial de prompt
-        self.prompt = ChatPromptTemplate.from_template(template=prompt_content)
-        self.prompt = self.prompt.partial(
-            tools=render_text_description(self.tools),
-            tool_names=", ".join([t.name for t in self.tools]),
-            chat_history="",
-        )
-
         # Crear agente y ejecutor
-        self.agent = create_react_agent(self.llm, self.tools, self.prompt)
-        self.agent_executor = AgentExecutor(
-            agent=self.agent,
-            tools=self.tools,
-            handle_parsing_errors=True,
-            verbose=True,
-            memory=self.memory,
-        )
+        self.agent = ReActAgent.from_tools(self.tools, llm=self.llm, verbose=True)
 
     def send_msg(self, message: str):
-        # Actualizar el historial en el prompt
-        formatted_history = "\n".join(self.chat_history)
-        self.prompt = self.prompt.partial(chat_history=formatted_history)
-
         # Generar respuesta del agente
-        response = self.agent_executor.invoke(
-            {"input": f"{formatted_history}\nUser: {message}"}
-        )
-
-        # Agregar el mensaje al historial
-        self.chat_history.append(f"User: {message}")
-
-        # Agregar la respuesta del agente al historial
-        self.chat_history.append(f"Agent: {response}")
-
+        response = self.agent.chat(message)
         return response
 
 

@@ -1,6 +1,5 @@
 from utils.db import connect
 from models.embedding_manager import EmbeddingManager
-from langchain_core.tools import tool
 
 neo4j_conn = connect()
 
@@ -230,7 +229,6 @@ def recommendSameAuthorAs(
         neo4j_conn.close()
 
 
-
 def getBookDescription(book: str) -> str:
     """
     Get the description of the specified book.
@@ -257,7 +255,6 @@ def getBookDescription(book: str) -> str:
         neo4j_conn.close()
 
 
-
 def getBooksInfo(books: list[str]) -> dict[str, dict]:
     """
     Get the information of the specified books. This includes the author, genre, description,
@@ -265,10 +262,11 @@ def getBooksInfo(books: list[str]) -> dict[str, dict]:
     """
     try:
         with neo4j_conn.session() as session:
-            query = f"""
-            MATCH (a:Author)<-[:WRITTEN_BY]-(b:Book)-[:BELONGS_TO]->(g:Genre)
-            WHERE b.title IN $books
-            RETURN b.title AS title, b AS book, b.description as description a.name AS author, g.name AS genre, b.publishedDate AS published, b.image AS imageUrl
+            query = """
+                MATCH (b:Book)-[:WRITTEN_BY]->(a:Author),
+                    (b)-[:BELONGS_TO]->(g:Genre)
+                WHERE b.title IN $books
+                RETURN b.title AS title, b AS book, b.description AS description, a.name AS author, g.name AS genre, b.publishedDate AS published, b.image AS imageUrl
             """
             result = session.run(query, {"books": books})  # type: ignore
             return {
@@ -284,5 +282,62 @@ def getBooksInfo(books: list[str]) -> dict[str, dict]:
     finally:
         neo4j_conn.close()
 
+def getBookReviews(book: str) -> list[str]:
+    """
+    Get the reviews of the specified book.
 
+    Parameters:
+        book (str): The title of the book.
+
+    Returns:
+        list[str]: The reviews of the book or a message if not found.
+    """
+    try:
+        with neo4j_conn.session() as session:
+            query = """
+            MATCH (r:Review)-[:REVIEWS]->(b:Book {title: $book})
+            RETURN r.text AS review
+            """
+            result = session.run(query, {"book": book})  # type: ignore
+            return [record["review"] for record in result]
+    except Exception as e:
+        return [f"An error occurred: {str(e)}"]
+    finally:
+        neo4j_conn.close()
+        
+def recommendBooksByReviews(review: str, k:int = 5) -> list:
+    """
+    Recommends books based on the specified text, which is used to find similar reviews.
+    This method uses the Neo4j graph database to find books that have similar embeddings
+    to the specified review's embedding, which is generated using the EmbeddingManager.
+    Args:
+        review (str): The review for which to find similar books.
+        k (int, optional): The number of similar reviews to find. Defaults to 5.
+    Returns:
+        list: A list of tuples, where each tuple contains the title of a similar book and
+              the similarity score.
+    """
+    try:
+        review_embedding = EmbeddingManager().generate_text_embedding(
+            [review]
+        )[0]
+
+        with neo4j_conn.session() as session:
+            # Consulta para encontrar los libros más similares
+            similar_books_query = f"""
+            MATCH (r:Review)-[:REVIEWS]->(b:Book)
+            WITH b,
+                 CASE 
+                     WHEN r.text_embedding IS NOT NULL THEN gds.similarity.cosine(r.text_embedding, $embedding)
+                     ELSE -1 
+                 END AS similarity
+            RETURN b.title AS title, similarity
+            ORDER BY similarity DESC
+            LIMIT $k
+            """
+            similar_books = session.run(similar_books_query, {"embedding": review_embedding})  # type: ignore
+
+            return [(record["title"], record["similarity"]) for record in similar_books]
+    finally:
+        neo4j_conn.close()
 # TODO: author and taking into account reviews.

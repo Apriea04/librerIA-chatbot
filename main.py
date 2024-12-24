@@ -35,6 +35,9 @@ results = rag_tools.recommend_same_author_as("Fortinbras", 12) # Expected 'Lee B
 for idx, result in enumerate(results, start=1):
     print(f"{idx}. {result[0]} (Score: {result[1]:.8f})")
 
+print('-'*106)
+results = rag_tools.getBooksInfo(["Selected Economic Essays and Addresses"])
+print(results)
 end_time = time.time()
 elapsed_time = end_time - start_time
 minutes, seconds = divmod(elapsed_time, 60)
@@ -43,7 +46,7 @@ print(f"Execution time: {int(minutes)} minutes and {seconds:.2f} seconds")
 
 agent = RagAgent(
     model_name=env.agent_llm_model,
-    prompt_path="agents/prompts/REACT_agent.txt",
+    prompt_path="agents/prompts/REACT_agent.txt"
 )
 
 while True:
