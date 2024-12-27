@@ -21,9 +21,7 @@ class RagAgent:
         if not tools:
             self.tools = [
                 FunctionTool.from_defaults(fn=rag_tools.recommendSimilarBooksByTitle),
-                FunctionTool.from_defaults(
-                    fn=rag_tools.recommendSimilarBooksByDescription
-                ),
+                FunctionTool.from_defaults(fn=rag_tools.recommendSimilarBooks),
                 FunctionTool.from_defaults(fn=rag_tools.recommendSameGenreAs),
                 FunctionTool.from_defaults(fn=rag_tools.recommendSameAuthorAs),
                 FunctionTool.from_defaults(fn=rag_tools.getBookDescription),
@@ -34,7 +32,7 @@ class RagAgent:
         else:
             self.tools = tools
         # Crear agente y ejecutor
-        self.agent = ReActAgent.from_tools(self.tools, llm=self.llm, verbose=True)
+        self.agent = ReActAgent.from_tools(self.tools, llm=self.llm, verbose=True)  # type: ignore
 
     def send_msg(self, message: str):
         # Generar respuesta del agente

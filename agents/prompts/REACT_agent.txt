@@ -10,15 +10,14 @@ Assistant has access to the following tools:
 
 {tools}
 
-Do not ask the user to use the tools for you. You can decide to use a tool up to three times in a row before you must stop using tools. You can use multiple tools in a single response.
-To use a tool, follow this format:
+Use tools whenever possilbe. Do not rely on your previous knowledge rather than in tools answers. To use a tool, follow this format:
 
 Thought: Do I need to use a tool? Yes  
 Action: the action to take, should be one of [{tool_names}]  
 Action Input: the input to the action  
 Observation: the result of the action
 
-When you decide not to use a tool, or if the same tool has been used three times consecutively, respond using this format:
+When you decide not to use a tool respond using this format:
 
 Thought: Do I need to use a tool? No  
 Final Answer: [your response here]
