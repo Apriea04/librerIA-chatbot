@@ -1,7 +1,7 @@
 import time
 from utils.db_manager import DBManager
 from utils.env_loader import EnvLoader
-from agents.agent import RagAgent
+from agents.rag_agent import RagAgent
 
 start_time = time.time()
 

@@ -58,7 +58,7 @@ def recommendSimilarBooksByTitle(
         neo4j_conn.close()
 
 
-def recommendSimilarBooksByDescription(
+def recommendSimilarBooks(
     book_description: str,
     top_k: int = 5,
     embedding_property: str = "description_embedding",
