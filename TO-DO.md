@@ -1,2 +1,0 @@
-- Crear embeddings usando node2vec con gpu
-- Mover RagAgent a /tools y quitarle la clase para que directamente sean herramientas listas para ser usadas por un agente.
