@@ -4,85 +4,51 @@ from models.embedding_manager import EmbeddingManager
 neo4j_conn = connect()
 
 
-def recommendSimilarBooksByTitle(
-    book_title: str,
-    top_k: int = 5,
-    embedding_property: str = "title_embedding",
-) -> list:
-    """
-    Recommends similar books based on the title of a given book.
-    This method uses the Neo4j graph database to find books that have similar embeddings
-    to the specified book title. If the embedding for the specified book title is not found,
-    it generates a new embedding using the EmbeddingManager.
-    Args:
-        book_title (str): The title of the book for which to find similar books.
-        top_k (int, optional): The number of similar books to return. Defaults to 5.
-        embedding_property (str, optional): The property name of the book node that contains
-                                            the embedding. Defaults to "title_embedding".
-    Returns:
-        list: A list of tuples, where each tuple contains the title of a similar book and
-              the similarity score.
-    """
-    try:
-        with neo4j_conn.session() as session:
-            # Obtener el embedding del libro especificado
-            query = f"""
-            MATCH (b:Book {{title: $title}})
-            RETURN b.{embedding_property} AS embedding
-            """
-            result = session.run(query, {"title": book_title}).single()  # type: ignore
-            book_embedding = result["embedding"] if result else None
-
-            if book_embedding is None:
-                book_embedding = EmbeddingManager().generate_text_embedding(
-                    [book_title]
-                )[0]
-
-            # Consulta para encontrar los libros más similares
-            similar_books_query = f"""
-            MATCH (b:Book)
-            WITH b, 
-                 CASE 
-                     WHEN b.{embedding_property} IS NOT NULL THEN gds.similarity.cosine(b.{embedding_property}, $embedding)
-                     ELSE -1 
-                 END AS similarity
-            WHERE b.title <> $title
-            RETURN b.title AS title, similarity
-            ORDER BY similarity DESC
-            LIMIT $top_k
-            """
-            similar_books = session.run(similar_books_query, {"embedding": book_embedding, "top_k": top_k, "title": book_title})  # type: ignore
-
-            return [(record["title"], record["similarity"]) for record in similar_books]
-    finally:
-        neo4j_conn.close()
-
-
 def recommendSimilarBooks(
-    book_description: str,
+    input_text: str,
     top_k: int = 5,
-    embedding_property: str = "description_embedding",
+    title_embedding_property: str = "title_embedding",
+    description_embedding_property: str = "description_embedding",
 ) -> list:
     """
-    Recommends similar books based on the given description.
-    This method uses the Neo4j graph database to find books that have similar embeddings
-    to the specified description's embedding, which is generated using the EmbeddingManager.
+    Recommends similar books based on a given title or description.
+    If the title exists in the database, it uses the book's description for recommendations.
+    If the title does not exist or the book has no description, it interprets the input as a description
+    and finds books with the most similar embeddings based on title or description embeddings.
+
     Args:
-        book_description (str): The description of the book for which to find similar books.
+        input_text (str): The title or description of the book.
         top_k (int, optional): The number of similar books to return. Defaults to 5.
-        embedding_property (str, optional): The property name of the book node that contains
-                                            the embedding. Defaults to "description_embedding".
+        title_embedding_property (str, optional): The property name for title embeddings.
+        description_embedding_property (str, optional): The property name for description embeddings.
+
     Returns:
-        list: A list of tuples, where each tuple contains the title of a similar book and
-              the similarity score.
+        list: A list of tuples, where each tuple contains the title of a similar book and the similarity score.
     """
     try:
-        descr_embedding = EmbeddingManager().generate_text_embedding(
-            [book_description]
-        )[0]
-
         with neo4j_conn.session() as session:
-            # Consulta para encontrar los libros más similares
+            # Check if the input matches an existing book title
+            query = """
+            MATCH (b:Book {title: $title})
+            RETURN b.description AS description
+            """
+            result = session.run(query, {"title": input_text}).single()  # type: ignore
+            book_description = result["description"] if result else None
+
+            if book_description:
+                # If the book exists and has a description, generate embedding for the description
+                embedding = EmbeddingManager().generate_text_embedding(
+                    [book_description]
+                )[0]
+                embedding_property = description_embedding_property
+            else:
+                # If the book doesn't exist or has no description, generate embedding from the input text
+                embedding = EmbeddingManager().generate_text_embedding([input_text])[0]
+                embedding_property = (
+                    title_embedding_property  # Use title embedding for input
+                )
+
+            # Query for similar books
             similar_books_query = f"""
             MATCH (b:Book)
             WITH b, 
@@ -94,7 +60,9 @@ def recommendSimilarBooks(
             ORDER BY similarity DESC
             LIMIT $top_k
             """
-            similar_books = session.run(similar_books_query, {"embedding": descr_embedding, "top_k": top_k})  # type: ignore
+            similar_books = session.run(
+                similar_books_query, {"embedding": embedding, "top_k": top_k}
+            )  # type: ignore
 
             return [(record["title"], record["similarity"]) for record in similar_books]
     finally:
@@ -282,6 +250,7 @@ def getBooksInfo(books: list[str]) -> dict[str, dict]:
     finally:
         neo4j_conn.close()
 
+
 def getBookReviews(book: str) -> list[str]:
     """
     Get the reviews of the specified book.
@@ -304,8 +273,9 @@ def getBookReviews(book: str) -> list[str]:
         return [f"An error occurred: {str(e)}"]
     finally:
         neo4j_conn.close()
-        
-def recommendBooksByReviews(review: str, k:int = 5) -> list:
+
+
+def recommendBooksByReviews(review: str, k: int = 5) -> list:
     """
     Recommends books based on the specified text, which is used to find similar reviews.
     This method uses the Neo4j graph database to find books that have similar embeddings
@@ -318,9 +288,7 @@ def recommendBooksByReviews(review: str, k:int = 5) -> list:
               the similarity score.
     """
     try:
-        review_embedding = EmbeddingManager().generate_text_embedding(
-            [review]
-        )[0]
+        review_embedding = EmbeddingManager().generate_text_embedding([review])[0]
 
         with neo4j_conn.session() as session:
             # Consulta para encontrar los libros más similares
@@ -335,9 +303,11 @@ def recommendBooksByReviews(review: str, k:int = 5) -> list:
             ORDER BY similarity DESC
             LIMIT $k
             """
-            similar_books = session.run(similar_books_query, {"embedding": review_embedding})  # type: ignore
+            similar_books = session.run(similar_books_query, {"embedding": review_embedding, "k": k})  # type: ignore
 
             return [(record["title"], record["similarity"]) for record in similar_books]
     finally:
         neo4j_conn.close()
+
+
 # TODO: author and taking into account reviews.
