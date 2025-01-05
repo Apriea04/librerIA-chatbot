@@ -34,21 +34,3 @@ class RagAgent:
         # Generar respuesta del agente
         response = self.agent.chat(message)
         return response
-
-
-# ============================================================
-# Test the agent
-# note:
-# - returning the parsing error will lead to the agent trying again
-# - if you set verbose True you can see the agent's internal reflection flow
-# ============================================================
-
-"""
-tools = [weather_forecast]
-agent_instance = Agent(model_name="llama3.3", prompt_path="agents/prompts/REACT_agent.txt", tools=tools)
-
-# Probar el agente
-print(agent_instance.send_msg("What is the weather in Paris?"))
-print(agent_instance.send_msg("And in New York?"))
-print(agent_instance.send_msg("dime que fue lo primero que te he preguntado"))
-"""
