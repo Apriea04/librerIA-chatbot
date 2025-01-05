@@ -14,7 +14,7 @@ class RagAgent:
         model_name: str,
         tools: Optional[list[FunctionTool]] = None,
     ):
-        self.llm = Ollama(model=model_name, temperature=0, request_timeout=5 * 60)
+        self.llm = Ollama(model=model_name, temperature=0, request_timeout=7 * 60)
         if not tools:
             self.tools = [
                 FunctionTool.from_defaults(fn=rag_tools.recommendSimilarBooks),
