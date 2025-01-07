@@ -310,4 +310,30 @@ def recommendBooksByReviews(review: str, k: int = 5) -> list:
         neo4j_conn.close()
 
 
+def getBooksFromAuthor(author: str, k: int|None = None) -> list:
+    """
+    Get the books written by the specified author.
+
+    Parameters:
+        author (str): The name of the author.
+        k (int, optional): The maximum number of books to return. Defaults to None.
+
+    Returns:
+        list: A list of books written by the author or a message if not found.
+    """
+    try:
+        with neo4j_conn.session() as session:
+            query = """
+            MATCH (b:Book)-[:WRITTEN_BY]->(a:Author {name: $author})
+            RETURN b.title AS title
+            """
+            if k is not None:
+                query += " LIMIT $k"
+            result = session.run(query, {"author": author, "k": k})  # type: ignore
+            return [record["title"] for record in result]
+    except Exception as e:
+        return [f"An error occurred: {str(e)}"]
+    finally:
+        neo4j_conn.close()
+        
 # TODO: author and taking into account reviews.
