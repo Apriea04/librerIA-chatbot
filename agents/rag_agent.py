@@ -24,6 +24,7 @@ class RagAgent:
                 FunctionTool.from_defaults(fn=rag_tools.getBooksInfo),
                 FunctionTool.from_defaults(fn=rag_tools.getBookReviews),
                 FunctionTool.from_defaults(fn=rag_tools.recommendBooksByReviews),
+                FunctionTool.from_defaults(fn=rag_tools.getBooksFromAuthor),
             ]
         else:
             self.tools = tools
