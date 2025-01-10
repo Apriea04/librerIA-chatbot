@@ -249,6 +249,81 @@ def getBooksInfo(books: list[str]) -> dict[str, dict]:
             }
     finally:
         neo4j_conn.close()
+        
+def getBookAuthor(book: str) -> str:
+    """
+    Get the author of the specified book.
+
+    Parameters:
+        book (str): The title of the book.
+
+    Returns:
+        str: The author of the book or a message if not found.
+    """
+    try:
+        with neo4j_conn.session() as session:
+            query = """
+            MATCH (b:Book {title: $book})-[:WRITTEN_BY]->(a:Author)
+            RETURN a.name AS author
+            """
+            result = session.run(query, {"book": book}).single()
+            if result is None:
+                return "Book not found"
+            return result["author"]
+    except Exception as e:
+        return f"An error occurred: {str(e)}"
+    finally:
+        neo4j_conn.close()
+        
+def getBookGenre(book: str) -> str:
+    """
+    Get the genre of the specified book.
+
+    Parameters:
+        book (str): The title of the book.
+
+    Returns:
+        str: The genre of the book or a message if not found.
+    """
+    try:
+        with neo4j_conn.session() as session:
+            query = """
+            MATCH (b:Book {title: $book})-[:BELONGS_TO]->(g:Genre)
+            RETURN g.name AS genre
+            """
+            result = session.run(query, {"book": book}).single()
+            if result is None:
+                return "Book not found"
+            return result["genre"]
+    except Exception as e:
+        return f"An error occurred: {str(e)}"
+    finally:
+        neo4j_conn.close()
+        
+def getBookPublisher(book: str) -> str:
+    """
+    Get the publisher of the specified book.
+
+    Parameters:
+        book (str): The title of the book.
+
+    Returns:
+        str: The publisher of the book or a message if not found.
+    """
+    try:
+        with neo4j_conn.session() as session:
+            query = """
+            MATCH (b:Book {title: $book})-[:PUBLISHED_BY]->(p:Publisher)
+            RETURN p.name AS publisher
+            """
+            result = session.run(query, {"book": book}).single()
+            if result is None:
+                return "Book not found"
+            return result["publisher"]
+    except Exception as e:
+        return f"An error occurred: {str(e)}"
+    finally:
+        neo4j_conn.close()
 
 
 def getBookReviews(book: str) -> list[str]:
