@@ -1,6 +1,3 @@
-//TODO: se recomienda primero crear las contrains y uan vez cargados los datos, crear los indices
-// Hay que crear los vector index
-
 CREATE CONSTRAINT IF NOT EXISTS FOR (b:Book) REQUIRE b.title IS UNIQUE;
 CREATE CONSTRAINT IF NOT EXISTS FOR (u:User) REQUIRE u.userId IS UNIQUE;
 CREATE CONSTRAINT IF NOT EXISTS FOR (a:Author) REQUIRE a.name IS UNIQUE;
