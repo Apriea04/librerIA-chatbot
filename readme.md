@@ -1,38 +1,33 @@
 # librerIA Chatbot
 
-librerIA Chatbot es un asistente de IA diseñado para proporcionar recomendaciones de libros y responder preguntas relacionadas con libros utilizando un modelo de lenguaje avanzado y una base de datos Neo4j.
-La base de datos está cargada con el dataset de Kaggle [Amazon Book Reviews](https://www.kaggle.com/datasets/mohamedbakhet/amazon-books-reviews).
+librerIA Chatbot es un chatbot de IA 100% local diseñado para proporcionar recomendaciones y responder preguntas sobre libros utilizando modelos de NLP y una base de datos Neo4j.
+Este es el proyecto final de la asignatura de Sistemas de Información de Gestión y Business Intelligence del Grado en Ingeniería Informática de la Universidad de León.
 
 ## Estructura del Proyecto
 
-```
-- .env: Archivo de configuración de variables de entorno.
-- .gitignore: Lista de archivos y directorios que Git debe ignorar.
-- agents/: Contiene la lógica del agente y herramientas relacionadas.
-- data/: Archivos de datos y scripts de procesamiento.
-- main.py: Punto de entrada principal de la aplicación.
-- models/: Gestión de embeddings y modelos.
-- requirements.txt: Lista de dependencias del proyecto.
-- testing/: Scripts de prueba.
-- utils/: Utilidades y scripts auxiliares.
-- view/: Interfaz de usuario y lógica de presentación.
-```
+- `agents/`: Contiene la lógica del agente y herramientas relacionadas.
+- `data/`: Archivos de datos y scripts de procesamiento.
+- `doc/`: Documentación del proyecto.
+- `models/`: Gestión de embeddings y modelos.
+- `testing/`: Scripts de prueba.
+- `utils/`: Utilidades y scripts auxiliares.
+- `view/`: Interfaz de usuario y lógica de presentación.
+- `.env`: Archivo de configuración de variables de entorno.
+- `.gitignore`: Lista de archivos y directorios que Git debe ignorar.
+- `main.py`: Punto de entrada principal de la aplicación.
+- `requirements.txt`: Lista de dependencias del proyecto.
+- `README.md`: Breve descripción del proyecto.
 
 ## Instalación
 
 1. Clona el repositorio:
 
    ```sh
-   git clone https://github.com/Apriea04/SIBI
-   cd SIBI
+   git clone https://github.com/Apriea04/librerIA-chatbot
+   cd libreIA-chatbot
    ```
 
-2. Crea y activa un entorno virtual:
-
-   ```sh
-   python -m venv .venv
-   source .venv/bin/activate  # En Windows: .venv\Scripts\activate
-   ```
+2. Se recomienda crear y activar un entorno virtual con `Python 3.11.9`.
 
 3. Instala las dependencias:
 
@@ -40,8 +35,13 @@ La base de datos está cargada con el dataset de Kaggle [Amazon Book Reviews](ht
    pip install -r requirements.txt
    ```
 
-4. Configura las variables de entorno en el archivo [.env](http://_vscodecontentref_/2):
-   ```env
+4. Descarga e instala Ollama y los modelos necesarios, por ejemplo, `llama3.3`.
+
+5. Descarga, instala y crea una nueva BBDD en Neo4j.
+
+6. Configura las variables de entorno en el archivo `.env`:
+
+   ```bash
    NEO4J_URI=bolt://<TU_URI_NEO4J>
    NEO4J_USERNAME=<TU_USUARIO_NEO4J>
    NEO4J_PASSWORD=<TU_CONTRASEÑA_NEO4J>
@@ -51,25 +51,35 @@ La base de datos está cargada con el dataset de Kaggle [Amazon Book Reviews](ht
    RATINGS_PATH=data/books_rating.csv
    BATCH_SIZE=10000
    EMBEDDINGS_MODEL=dunzhang/stella_en_1.5B_v5
-   AGENT_LLM_MODEL=llama3.2
+   AGENT_LLM_MODEL=llama3.3
    ```
 
-## Uso
+7. Descarga el dataset `Amazon Book Reviews` de [Kaggle](https://www.kaggle.com/datasets/mohamedbakhet/amazon-books-reviews).
 
-1. Inicia la aplicación:
+8. Ejecuta el fichero `data/dataset_corrections.py` para limpiar y procesar el dataset.
+
+9. Abre una conexion con la BBDD y ejecuta la consulta Cypher del fichero `utils/load.cypher`.
+
+10. Ejecuta el método `generate_embeddings_for` de la clase `DBManager` para generar los embeddings de los campos necesarios y guardarlos en la BBDD, pasando como parámetros los siguientes valores:
+    - `"Book"`, `"title"`, `"title"`; para los títulos de los libros.
+    - `"Book"`, `"description"`, `"title"`; para las descripciones de los libros.
+    - `"Review"`, `"summary"`, `""`; para los resúmenes de las reseñas.
+    - `"Review"`, `"text"`, `""`; para los textos de las reseñas.
+
+## Ejecución
+
+1. Poner en marcha la BBDD de Neo4j.
+2. Ejecutar Ollama para tener un servidor de LLM.
+3. Ejecutar la aplicación:
 
    ```sh
    streamlit run main.py
    ```
 
-2. Abre tu navegador web y ve a `http://localhost:8501` para interactuar con el chatbot.
+4. Abre tu navegador web y ve a `http://localhost:8501` para interactuar con el chatbot.
 
-## Estructura de Archivos
+Nótese que al ser la ejecución 100% local, es posible que el sistema sea lento.
 
-- [main.py](http://_vscodecontentref_/3): Punto de entrada principal de la aplicación.
-- [agents](http://_vscodecontentref_/4): Contiene la lógica del agente y herramientas relacionadas.
-- [data](http://_vscodecontentref_/5): Archivos de datos y scripts de procesamiento.
-- [models](http://_vscodecontentref_/6): Gestión de embeddings y modelos.
-- [testing](http://_vscodecontentref_/7): Scripts de prueba.
-- [utils](http://_vscodecontentref_/8): Utilidades y scripts auxiliares.
-- [view](http://_vscodecontentref_/9): Interfaz de usuario y lógica de presentación.
+## Autor
+
+Este proyecto ha sido desarrollado por [Álvaro Prieto Álvarez](https://github.com/Apriea04).
